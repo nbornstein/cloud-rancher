@@ -109,7 +109,10 @@ resource "azurerm_linux_virtual_machine" "vm" {
     use_letsencrypt        = var.use_letsencrypt,
     tls_crt_b64            = local.tls_crt_b64,
     tls_key_b64            = local.tls_key_b64,
-    ca_crt_b64             = local.ca_crt_b64
+    ca_crt_b64             = local.ca_crt_b64,
+    rke2_version           = var.rke2_version,
+    cert_manager_version   = var.cert_manager_version,
+    rancher_version        = var.rancher_version
   }) :
     templatefile("${path.module}/templates/join-node.sh.tpl", {
       sles_reg_code    = var.sles_reg_code,

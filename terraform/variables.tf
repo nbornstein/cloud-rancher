@@ -146,3 +146,9 @@ variable "cert_manager_version" {
   type        = string
   default     = "v1.13.1"
 }
+
+variable "rancher_version" {
+  description = "The version of the Rancher Helm chart to install. If not set, the latest version from the Prime repository is used."
+  type        = string
+  default     = ""
+}

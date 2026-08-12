@@ -75,6 +75,11 @@ You will also need the following from the SUSE Customer Center:
     letsencrypt_email      = "my-email@example.com"
     admin_username         = "azureuser"
 
+    # Optional: Specify component versions for a repeatable deployment.
+    # rke2_version           = "v1.28.10+rke2r1"
+    # cert_manager_version   = "v1.13.1"
+    # rancher_version        = "2.9.1"
+
     # --- Sensitive Values ---
     # Your SSH public key content
     ssh_public_key         = "ssh-rsa AAAA..."

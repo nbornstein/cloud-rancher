@@ -108,9 +108,18 @@ PRIVATE_CA_OPTS=""
 
 # --- Install/Upgrade Rancher Helm Chart ---
 echo "Installing Rancher via Helm..."
+
+# Conditionally set the version flag for Helm. If no version is specified,
+# Helm will automatically use the latest version from the repository.
+RANCHER_VERSION_OPTS=""
+if [[ -n "${rancher_version}" ]]; then
+  RANCHER_VERSION_OPTS="--version ${rancher_version}"
+fi
+
 helm upgrade --install rancher rancher-prime/rancher \
   --namespace cattle-system \
   --create-namespace \
+  $RANCHER_VERSION_OPTS \
   --set hostname=${rancher_hostname} \
   --set bootstrapPassword=${rancher_bootstrap_password} \
   $TLS_SOURCE_OPTS \
