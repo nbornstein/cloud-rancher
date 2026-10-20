@@ -6,3 +6,4 @@ terraform/.terraform/providers/*
 terraform/.terraform.lock.hcl
 terraform/.terraform.tfstate.lock.info
 terraform.tfstate
+.claude/

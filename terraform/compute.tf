@@ -23,6 +23,27 @@ locals {
   ca_crt_b64       = base64encode(local.ca_certs_pem)
 }
 
+# Without this, an empty/misconfigured tls_cert_secret_arn when use_letsencrypt = false
+# doesn't fail here - it silently flows through as base64encode("") and only surfaces much
+# later as an obscure TLS handshake / ingress-controller failure. A variable "validation"
+# block can't reference other variables, so this uses a resource precondition instead,
+# which runs at plan time regardless of the custom_cert data source's own count.
+resource "null_resource" "validate_custom_cert_config" {
+  lifecycle {
+    precondition {
+      condition = (
+        var.use_letsencrypt ||
+        (
+          var.tls_cert_secret_arn != "" &&
+          try(local.custom_cert_data["tls.crt"], "") != "" &&
+          try(local.custom_cert_data["tls.key"], "") != ""
+        )
+      )
+      error_message = "When use_letsencrypt = false, tls_cert_secret_arn must point to a Secrets Manager secret containing non-empty 'tls.crt' and 'tls.key' keys."
+    }
+  }
+}
+
 resource "azurerm_availability_set" "avset" {
   name                         = "avset-rke2"
   location                     = azurerm_resource_group.rg.location
@@ -75,6 +96,15 @@ resource "azurerm_linux_virtual_machine" "vm" {
   network_interface_ids = [
     azurerm_network_interface.nic[count.index].id,
   ]
+
+  # The first node's boot script requests a Let's Encrypt certificate for
+  # rancher_hostname via an HTTP-01 challenge. Terraform's dependency graph
+  # has no other link between this VM and the Route53 record (it's only
+  # referenced by the DNS record, not the other way around), so without this
+  # the VM can boot and start the ACME challenge before the record even
+  # exists. This only orders the two Terraform-side API calls; the boot
+  # script still has to wait for the record to actually propagate.
+  depends_on = [aws_route53_record.rancher_dns]
 
   admin_ssh_key {
     username   = var.admin_username
@@ -226,6 +256,58 @@ resource "null_resource" "scc_deregister_rancher_manager" {
   }
 }
 
+resource "null_resource" "scc_deregister_rke2_nodes" {
+  # Only create this resource if SCC credentials are provided. It runs for each RKE2 node.
+  count = var.scc_username != null && var.scc_password != null ? var.rke2_node_count : 0
+
+  triggers = {
+    # The hostname used for registration is assumed to be the VM's name.
+    scc_system_hostname = "vm-rke2-node-${count.index + 1}"
+    scc_username        = var.scc_username
+    scc_password        = var.scc_password
+    script_path         = "${path.module}/deregister-scc.sh"
+    # Explicit dependency on the VM resource.
+    vm_id               = azurerm_linux_virtual_machine.vm[count.index].id
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = self.triggers.script_path
+
+    environment = {
+      SCC_USERNAME    = self.triggers.scc_username
+      SCC_PASSWORD    = self.triggers.scc_password
+      SYSTEM_HOSTNAME = self.triggers.scc_system_hostname
+    }
+  }
+}
+
+resource "null_resource" "scc_deregister_downstream_nodes" {
+  # Only create this resource if SCC credentials are provided. It runs for each downstream node.
+  count = var.scc_username != null && var.scc_password != null ? var.downstream_node_count : 0
+
+  triggers = {
+    # The hostname used for registration is assumed to be the VM's name.
+    scc_system_hostname = "vm-downstream-node-${count.index + 1}"
+    scc_username        = var.scc_username
+    scc_password        = var.scc_password
+    script_path         = "${path.module}/deregister-scc.sh"
+    # Explicit dependency on the VM resource.
+    vm_id               = azurerm_linux_virtual_machine.downstream_vm[count.index].id
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = self.triggers.script_path
+
+    environment = {
+      SCC_USERNAME    = self.triggers.scc_username
+      SCC_PASSWORD    = self.triggers.scc_password
+      SYSTEM_HOSTNAME = self.triggers.scc_system_hostname
+    }
+  }
+}
+
 # --- Wait for Rancher Server ---
 
 # This resource uses a local-exec provisioner to poll the Rancher health
@@ -250,41 +332,47 @@ resource "null_resource" "wait_for_rancher" {
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     # This script polls the Rancher health endpoint using curl.
-    # It uses --resolve to bypass DNS, making the check more reliable and faster.
-    # It also checks that port 80 is open, which is required for the Let's Encrypt HTTP-01 challenge.
+    # For Let's Encrypt, it performs a strict check, failing if the certificate is not valid.
+    # This prevents Terraform from reporting success when the certificate is bad.
     command     = <<-EOT
-      echo "Waiting for Rancher server to become available at https://${self.triggers.rancher_hostname}"
-      echo "This can take up to 20 minutes. Polling endpoints..."
+      echo "Waiting for Rancher server to become available with a valid certificate at https://${self.triggers.rancher_hostname}"
+      echo "This can take up to 20 minutes. Polling..."
       end_time=$((SECONDS+1200)) # 20 minute timeout
-      while [ $SECONDS -lt $end_time ]; do
-        https_code=$(curl --resolve ${self.triggers.rancher_hostname}:443:${self.triggers.lb_public_ip} --insecure --silent --output /dev/null --write-out "%%{http_code}" https://${self.triggers.rancher_hostname}/healthz)
-        if [ "$https_code" = "200" ]; then
-          echo "Rancher application is ready (HTTPS /healthz returned 200)."
 
-          if [ "${self.triggers.use_letsencrypt}" = "true" ]; then
-            echo "Now verifying that port 80 is open for Let's Encrypt..."
-            # A test request to a non-existent challenge path should return 404 from nginx, not 000 (timeout/refused)
-            http_code=$(curl --connect-timeout 10 --resolve ${self.triggers.rancher_hostname}:80:${self.triggers.lb_public_ip} --insecure --silent --output /dev/null --write-out "%%{http_code}" http://${self.triggers.rancher_hostname}/.well-known/acme-challenge/tf-health-check)
-            if [ "$http_code" = "404" ]; then
-              echo "Port 80 is open and correctly routed to the ingress controller (HTTP 404 received)."
-              echo "Rancher deployment is ready."
-              exit 0
-            else
-              echo "Error: Rancher is running, but port 80 is not correctly configured for Let's Encrypt." >&2
-              echo "A request to the ingress controller returned HTTP code $http_code, but expected 404." >&2
-              echo "A code of '000' means the connection failed, likely due to a missing Load Balancer rule for port 80." >&2
-              exit 1
-            fi
-          else
-            echo "Using custom certificate. Skipping Let's Encrypt port 80 check."
+      while [ $SECONDS -lt $end_time ]; do
+        # For Let's Encrypt, we perform a strict check. Curl will exit with a non-zero code
+        # if the certificate is not trusted by the system's CA store.
+        if [ "${self.triggers.use_letsencrypt}" = "true" ]; then
+          # The '--fail' flag ensures curl returns an error for HTTP codes like 404 or 503.
+          # The lack of '--insecure' ensures curl validates the certificate.
+          # We capture stderr to diagnose the specific error.
+          curl_error=$(curl --fail --silent --show-error --connect-timeout 10 --resolve ${self.triggers.rancher_hostname}:443:${self.triggers.lb_public_ip} https://${self.triggers.rancher_hostname}/healthz 2>&1 >/dev/null)
+          if [ $? -eq 0 ]; then
+            echo "Successfully connected to Rancher with a valid Let's Encrypt certificate."
             echo "Rancher deployment is ready."
             exit 0
+          else
+            if [[ "$curl_error" == *"self-signed certificate"* ]]; then
+              echo "Rancher is up but is still using a self-signed certificate. Waiting for Let's Encrypt..."
+            else
+              echo "Rancher not ready yet. Polling check failed: $curl_error. Retrying in 20 seconds..."
+            fi
           fi
+        else
+          # For custom certs, we can only check if the application is responsive,
+          # as the CA might not be in the system's trust store.
+          https_code=$(curl --resolve ${self.triggers.rancher_hostname}:443:${self.triggers.lb_public_ip} --insecure --silent --output /dev/null --write-out "%%{http_code}" https://${self.triggers.rancher_hostname}/healthz)
+          if [ "$https_code" = "200" ]; then
+            echo "Rancher application is ready with a custom certificate (HTTPS /healthz returned 200)."
+            exit 0
+          fi
+          echo "Rancher not ready yet (HTTPS /healthz code: $https_code). Retrying in 20 seconds..."
         fi
-        echo "Rancher not ready yet (HTTPS /healthz code: $https_code). Retrying in 20 seconds..."
         sleep 20
       done
+
       echo "Error: Timed out after 20 minutes waiting for Rancher to become healthy on HTTPS." >&2
+      echo "If using Let's Encrypt, this likely means the certificate could not be obtained." >&2
       echo "Please check the cloud-init logs on 'vm-rke2-node-1' for errors: 'sudo journalctl -u cloud-final'" >&2
       exit 1
     EOT

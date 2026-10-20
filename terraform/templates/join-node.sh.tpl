@@ -2,7 +2,10 @@
 set -x
 
 # 1. Register SLES with SUSE Customer Center
+# set +x/-x brackets this so the registration code isn't traced into cloud-init logs.
+set +x
 SUSEConnect -r "${sles_reg_code}"
+set -x
 
 # 2. Kernel & OS prep for RKE2
 systemctl stop apparmor || true

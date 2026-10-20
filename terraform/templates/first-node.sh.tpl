@@ -2,7 +2,10 @@
 set -x
 
 # 1. Register SLES with SUSE Customer Center
+# set +x/-x brackets this so the registration code isn't traced into cloud-init logs.
+set +x
 SUSEConnect -r "${sles_reg_code}"
+set -x
 
 # 2. Kernel & OS prep for RKE2
 systemctl stop apparmor || true
@@ -33,6 +36,25 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 echo "export PATH=\$PATH:/var/lib/rancher/rke2/bin" >> /etc/profile
 echo "export KUBECONFIG=/etc/rancher/rke2/rke2.yaml" >> /etc/profile
 
+# Wait for RKE2 components to be ready. This is crucial to avoid race conditions.
+echo "Waiting for RKE2 API server to be ready..."
+timeout 180s bash -c 'while [[ "$(curl -k -s -o /dev/null -w ''%%{http_code}'' https://127.0.0.1:6443/ping)" != "200" ]]; do echo "Waiting for API server..."; sleep 5; done'
+
+echo "Waiting for core RKE2 components (DNS and Ingress) to be ready..."
+# RKE2's CoreDNS addon deploys as the "rke2-coredns-rke2-coredns" Deployment;
+# "kube-dns" is only the compatibility Service name, not a workload.
+kubectl wait --for=condition=Available deployment/rke2-coredns-rke2-coredns -n kube-system --timeout=300s || {
+  echo "Error: Timed out waiting for CoreDNS (deployment/rke2-coredns-rke2-coredns) to become available." >&2
+  exit 1
+}
+# RKE2's packaged ingress-nginx addon runs as a DaemonSet, not a Deployment, so it
+# has no "Available" condition; wait on rollout status instead.
+kubectl rollout status daemonset/rke2-ingress-nginx-controller -n kube-system --timeout=300s || {
+  echo "Error: Timed out waiting for ingress-nginx (daemonset/rke2-ingress-nginx-controller) to become ready." >&2
+  exit 1
+}
+echo "RKE2 core components are ready."
+
 # 6. Install Helm
 curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash -
 
@@ -46,6 +68,26 @@ kubectl wait --for=condition=Available deployment/cert-manager-webhook \
   --namespace cert-manager --timeout=300s
 echo "cert-manager webhook is ready."
 
+%{ if use_letsencrypt ~}
+# Create a ClusterIssuer for Let's Encrypt. This tells cert-manager how to obtain certificates.
+echo "Creating Let's Encrypt ClusterIssuer..."
+cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: "${letsencrypt_email}"
+    privateKeySecretRef:
+      name: letsencrypt-prod-private-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+EOF
+%{ endif ~}
 # 8. Deploy Rancher via Helm
 helm repo add rancher-prime https://charts.rancher.com/server-charts/prime
 helm repo update
@@ -56,7 +98,7 @@ kubectl create namespace cattle-system --dry-run=client -o yaml | kubectl apply 
 # --- Configure TLS ---
 # This section conditionally configures TLS based on the 'use_letsencrypt' variable.
 
-% if !use_letsencrypt ~%
+%{ if !use_letsencrypt ~}
 # --- Custom Certificate Configuration ---
 echo "Configuring Rancher with custom TLS certificate."
 
@@ -76,7 +118,7 @@ EOF
 
 # If a CA certificate is provided, create the 'tls-ca' secret.
 # This makes Rancher trust the custom CA for downstream agents.
-% if ca_crt_b64 != "" ~%
+%{ if ca_crt_b64 != "" ~}
 echo "Custom CA certificate provided. Creating tls-ca secret."
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -89,21 +131,83 @@ data:
   cacerts.pem: ${ca_crt_b64}
 EOF
 PRIVATE_CA_OPTS="--set privateCA=true"
-% else ~%
+%{ else ~}
 PRIVATE_CA_OPTS="--set privateCA=false"
-% endif ~%
+%{ endif ~}
 
 # Set Helm chart values to use the custom secret.
 TLS_SOURCE_OPTS="--set ingress.tls.source=secret --set ingress.tls.secretName=suse-southeast-lab-certs"
 
-% else ~%
+%{ else ~}
 # --- Let's Encrypt Configuration ---
 echo "Configuring Rancher with Let's Encrypt."
 
-# Set Helm chart values for Let's Encrypt.
-TLS_SOURCE_OPTS="--set ingress.tls.source=letsencrypt --set letsencrypt.email=${letsencrypt_email}"
+# Decouple certificate creation from the Rancher install to prevent race conditions.
+# 1. Wait for rancher_hostname to resolve to this load balancer in public DNS.
+# 2. Create a Certificate resource manually.
+# 3. Wait for cert-manager to issue the certificate and create the secret.
+# 4. Install Rancher, telling it to use the pre-existing secret.
+
+# Let's Encrypt's HTTP-01 challenge is validated by Let's Encrypt's own resolvers,
+# not this VM's local DNS. Terraform creating the DNS record (or a user creating it
+# manually) does not mean it has propagated yet, so poll a public DNS-over-HTTPS
+# resolver directly (avoids depending on dig/host, which aren't installed by default
+# on this image) until it resolves before ever requesting a certificate.
+wait_for_public_dns() {
+  echo "Waiting for ${rancher_hostname} to resolve to ${lb_ip} in public DNS before requesting a Let's Encrypt certificate..."
+  local end_time=$((SECONDS + 600))
+  while [ $SECONDS -lt $end_time ]; do
+    resolved_ip=$(curl --silent --max-time 10 "https://dns.google/resolve?name=${rancher_hostname}&type=A" \
+      | grep -o '"data":"[0-9.]*"' | head -n1 | cut -d'"' -f4)
+    if [ "$resolved_ip" = "${lb_ip}" ]; then
+      echo "DNS resolution confirmed: ${rancher_hostname} -> $resolved_ip"
+      return 0
+    fi
+    echo "DNS not ready yet (got '$${resolved_ip:-<no answer>}', want ${lb_ip}). Retrying in 15s..."
+    sleep 15
+  done
+  return 1
+}
+
+if ! wait_for_public_dns; then
+  echo "Error: Timed out after 10 minutes waiting for ${rancher_hostname} to resolve to ${lb_ip}." >&2
+  echo "The Let's Encrypt HTTP-01 challenge requires this to succeed first. Check the DNS record (Route53 or manual) and retry." >&2
+  exit 1
+fi
+
+echo "Creating Certificate resource to trigger Let's Encrypt..."
+cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: rancher-tls-cert
+  namespace: cattle-system
+spec:
+  secretName: rancher-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - "${rancher_hostname}"
+EOF
+
+echo "Waiting for Let's Encrypt certificate to be issued... This can take several minutes."
+kubectl wait --for=condition=Ready certificate/rancher-tls-cert -n cattle-system --timeout=600s || {
+  echo "Error: Timed out waiting for the Let's Encrypt certificate 'rancher-tls-cert' to become Ready." >&2
+  echo "--- cert-manager diagnostics (certificate/rancher-tls-cert) ---" >&2
+  kubectl describe certificate rancher-tls-cert -n cattle-system >&2 || true
+  echo "--- cert-manager diagnostics (challenges) ---" >&2
+  kubectl get challenges -n cattle-system -o wide >&2 || true
+  kubectl describe challenges -n cattle-system >&2 || true
+  echo "Refusing to install Rancher against a certificate that was never issued." >&2
+  exit 1
+}
+echo "Certificate 'rancher-tls' has been successfully issued."
+
+# Set Helm chart values to use the secret that was just created.
+TLS_SOURCE_OPTS="--set ingress.tls.source=secret --set ingress.tls.secretName=rancher-tls"
 PRIVATE_CA_OPTS=""
-% endif ~%
+%{ endif ~}
 
 
 # --- Install/Upgrade Rancher Helm Chart ---
@@ -116,6 +220,8 @@ if [[ -n "${rancher_version}" ]]; then
   RANCHER_VERSION_OPTS="--version ${rancher_version}"
 fi
 
+# set +x/-x brackets this so the bootstrap password isn't traced into cloud-init logs.
+set +x
 helm upgrade --install rancher rancher-prime/rancher \
   --namespace cattle-system \
   --create-namespace \
@@ -124,11 +230,8 @@ helm upgrade --install rancher rancher-prime/rancher \
   --set bootstrapPassword=${rancher_bootstrap_password} \
   $TLS_SOURCE_OPTS \
   $PRIVATE_CA_OPTS \
-  %{~ if use_letsencrypt ~}
-  # Disable HTTP to HTTPS redirect to allow the Let's Encrypt HTTP-01 challenge to succeed.
-  --set ingress.extraAnnotations.'nginx\.ingress\.kubernetes\.io/ssl-redirect'="false"
-  %{~ endif ~}
   # ... (keep any other --set flags you have for rancher, like for Gemini AI)
+set -x
 
 
 # 9. Wait for Rancher and configure settings
@@ -144,26 +247,44 @@ echo "Configuring Rancher AI with Google Gemini..."
 # Create the secret for the Gemini API key.
 # Using apply with dry-run to make this step idempotent. The explicit kubeconfig is removed
 # as it's already in the environment.
+# set +x/-x brackets this so the API key isn't traced into cloud-init logs.
+set +x
 kubectl create secret generic llm-provider-google-gemini \
   --namespace cattle-system \
   --from-literal=apiKey="${gemini_api_key}" \
   --dry-run=client -o yaml | kubectl apply -f -
+set -x
 
-# Set the LLM provider to google-gemini
+# Install the AI agent. The Helm chart does not need the API key directly,
+# as the Rancher backend is configured to read it from the secret created above.
+# This avoids exposing the secret in the shell's process list.
 helm install rancher-ai-agent \
   --namespace cattle-ai-agent-system \
   --create-namespace \
   --set activeLlm=gemini \
   --set geminiLlmModel="${gemini_model}" \
-  --set googleApiKey="${gemini_api_key}" \
   oci://registry.suse.com/rancher/charts/rancher-ai-agent
 
 # Final health check to ensure Rancher is fully available before script exits.
 # This polls the ingress endpoint to confirm the application is responsive.
+# We use --resolve to bypass DNS and test the ingress rule for the correct hostname.
 echo "Performing final health check on Rancher..."
-timeout 300s bash -c 'while [[ "$(curl -k -s -o /dev/null -w ''%%{http_code}'' https://localhost/healthz)" != "200" ]]; do echo "Waiting for Rancher to be healthy..."; sleep 5; done'
-if [ $? -ne 0 ]; then
+
+health_check_command() {
+  # When using Let's Encrypt, we do a strict check (no -k) to validate the cert.
+  # For custom certs, we must use -k as the custom CA won't be trusted by the OS.
+  %{ if use_letsencrypt ~}
+  curl --fail --silent --show-error --connect-timeout 10 --resolve ${rancher_hostname}:443:127.0.0.1 https://${rancher_hostname}/healthz > /dev/null
+  %{ else ~}
+  [[ "$(curl -k --resolve ${rancher_hostname}:443:127.0.0.1 -s -o /dev/null -w '%%{http_code}' https://${rancher_hostname}/healthz)" == "200" ]]
+  %{ endif ~}
+}
+
+timeout 480s bash -c 'while ! health_check_command; do
+  echo "Waiting for Rancher to become healthy with a valid certificate..."
+  sleep 15
+done' || {
   echo "Timed out waiting for Rancher to become healthy." >&2
   exit 1
-fi
+}
 echo "Rancher is healthy and fully available."
