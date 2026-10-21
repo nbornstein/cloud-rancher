@@ -136,9 +136,18 @@ variable "tls_cert_secret_arn" {
 }
 
 variable "rke2_version" {
-  description = "The version of RKE2 to install (e.g., v1.28.10+rke2r1). If not set, the latest stable version is used."
+  description = <<-EOT
+    The version of RKE2 to install (e.g., v1.35.9+rke2r1). Defaults to the
+    latest v1.35.x release rather than the overall latest RKE2 release:
+    starting with RKE2 v1.36, Traefik replaces ingress-nginx as the default
+    packaged ingress controller, and this project's cert-manager/Rancher
+    bootstrap still assumes ingress-nginx. Only set this to "" (install the
+    absolute latest RKE2 release) or a v1.36+ version if you have also
+    updated the ingress-nginx readiness wait and the cert-manager
+    ClusterIssuer's HTTP-01 solver to target Traefik instead.
+  EOT
   type        = string
-  default     = ""
+  default     = "v1.35.9+rke2r1"
 }
 
 variable "cert_manager_version" {
