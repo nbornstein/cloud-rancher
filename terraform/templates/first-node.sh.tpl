@@ -103,12 +103,18 @@ kubectl create namespace cattle-system --dry-run=client -o yaml | kubectl apply 
 echo "Configuring Rancher with custom TLS certificate."
 
 # Create the TLS secret for the ingress from the provided data.
-# The secret is named 'suse-southeast-lab-certs' as you requested.
+# The Rancher Helm chart's default secret name when ingress.tls.source=secret
+# is cattle-system/tls-rancher-ingress. Use that name directly instead of a
+# custom one + an `ingress.tls.secretName` override: if the Ingress ever ends
+# up referencing a secret that doesn't exist (e.g. a typo in that override),
+# the ingress controller silently falls back to serving its default
+# self-signed "Kubernetes Ingress Controller Fake Certificate" instead of
+# failing loudly.
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
-  name: suse-southeast-lab-certs
+  name: tls-rancher-ingress
   namespace: cattle-system
 type: kubernetes.io/tls
 data:
@@ -135,8 +141,8 @@ PRIVATE_CA_OPTS="--set privateCA=true"
 PRIVATE_CA_OPTS="--set privateCA=false"
 %{ endif ~}
 
-# Set Helm chart values to use the custom secret.
-TLS_SOURCE_OPTS="--set ingress.tls.source=secret --set ingress.tls.secretName=suse-southeast-lab-certs"
+# Set Helm chart values to use the custom secret (tls-rancher-ingress, created above).
+TLS_SOURCE_OPTS="--set ingress.tls.source=secret"
 
 %{ else ~}
 # --- Let's Encrypt Configuration ---
