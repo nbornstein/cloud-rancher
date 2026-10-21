@@ -17,9 +17,10 @@ locals {
   custom_cert_data = length(data.aws_secretsmanager_secret_version.custom_cert) > 0 ? jsondecode(data.aws_secretsmanager_secret_version.custom_cert[0].secret_string) : {}
   tls_crt_b64      = base64encode(try(local.custom_cert_data["tls.crt"], ""))
   tls_key_b64      = base64encode(try(local.custom_cert_data["tls.key"], ""))
-  # Per your request, this now looks for 'cacerts.pem' (assuming 'cacerts.pm' was a typo)
-  # in the secret for the CA bundle. It falls back to 'ca.crt' for flexibility.
-  ca_certs_pem     = try(local.custom_cert_data["cacerts.pem"], try(local.custom_cert_data["ca.crt"], ""))
+  # The secret this project is actually populated with uses the key 'cacerts.pm' (a typo
+  # that was never corrected at the source), so look for that first. Also accept the
+  # correctly-spelled 'cacerts.pem' and 'ca.crt' for flexibility/forwards-compatibility.
+  ca_certs_pem = try(local.custom_cert_data["cacerts.pm"], try(local.custom_cert_data["cacerts.pem"], try(local.custom_cert_data["ca.crt"], "")))
   ca_crt_b64       = base64encode(local.ca_certs_pem)
 }
 
