@@ -179,11 +179,9 @@ After the DNS record has propagated, you can access the Rancher UI in your brows
 
 ## Automatic De-registration
 
-If you provide `scc_username` and `scc_password` variables, Terraform will automatically de-register the **Rancher Manager instance** from the SUSE Customer Center when you run `terraform destroy`.
 If you provide `scc_username` and `scc_password` variables, Terraform will automatically de-register the **Rancher Manager instance and all SLES virtual machines** from the SUSE Customer Center when you run `terraform destroy`.
 
-This action targets the registration associated with the Rancher Prime license, which is identified in SCC by the `rancher_hostname` FQDN (e.g., `rancher.mydomain.com`). This helps keep your subscriptions clean and prevents orphaned application entries in SCC. The process is handled by a `destroy` provisioner and requires `jq` to be installed on the machine running Terraform. If credentials are not provided, this step is skipped.
-This helps keep your subscriptions clean and prevents orphaned system and application entries in SCC. The process is handled by a `destroy` provisioner and requires `jq` to be installed on the machine running Terraform. If credentials are not provided, this step is skipped.
+This action targets the registration associated with the Rancher Prime license, which is identified in SCC by the `rancher_hostname` FQDN (e.g., `rancher.mydomain.com`). This helps keep your subscriptions clean and prevents orphaned system and application entries in SCC. The process is handled by a `destroy` provisioner and requires `jq` to be installed on the machine running Terraform. If credentials are not provided, this step is skipped.
 
 *   The **Rancher Manager application** registration is identified in SCC by its FQDN (e.g., `rancher.mydomain.com`).
 *   Each **SLES VM** is identified by its machine hostname (e.g., `vm-rancher-node-1`).

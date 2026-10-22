@@ -26,6 +26,6 @@ write-kubeconfig-mode: "0640"
 EOF
 
 # 4. Install & Start RKE2 as server (Control-Plane + Etcd + Worker)
-curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="server" sh -
+curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="${rke2_version}" INSTALL_RKE2_TYPE="server" sh -
 systemctl enable rke2-server.service
 systemctl start rke2-server.service
