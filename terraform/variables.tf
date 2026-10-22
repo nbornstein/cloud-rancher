@@ -153,7 +153,7 @@ variable "aws_route53_zone_id" {
   default     = null
 }
 
-variable "aws_create_dns_record" {
+variable "aws_create_route53_record" {
   type        = bool
   description = "If true, create a Route53 record for the Rancher hostname."
   default     = false

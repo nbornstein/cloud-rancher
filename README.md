@@ -105,13 +105,13 @@ You will also need the following from the SUSE Customer Center:
     rancher_bootstrap_password = "a_very_strong_password_for_rancher"
 
     # Optional: AWS Route53 for automatic DNS record creation
-    aws_create_dns_record  = true
-    aws_route53_zone_id    = "YOUR_ROUTE53_ZONE_ID"
+    aws_create_route53_record = true
+    aws_route53_zone_id       = "YOUR_ROUTE53_ZONE_ID"
     ```
 
 ## AWS IAM Permissions
 
-If you enable optional AWS integrations like Route 53 (`aws_create_dns_record = true`) or custom certificates from AWS Secrets Manager (`use_letsencrypt = false`), the IAM user or role that Terraform uses must have the corresponding permissions.
+If you enable optional AWS integrations like Route 53 (`aws_create_route53_record = true`) or custom certificates from AWS Secrets Manager (`use_letsencrypt = false`), the IAM user or role that Terraform uses must have the corresponding permissions.
 
 You can create an IAM policy with the following JSON and attach it to your user or role. This policy grants the minimum required permissions for both features. You can remove any statement that you do not need.
 
@@ -170,7 +170,7 @@ You can create an IAM policy with the following JSON and attach it to your user 
 
 Once the deployment is complete, you can access the Rancher UI.
 
-If you have configured the AWS provider and set `aws_create_dns_record = true`, an `A` record for your `rancher_hostname` will be automatically created in your Route53 hosted zone, pointing to the public IP of the Azure Load Balancer.
+If you have configured the AWS provider and set `aws_create_route53_record = true`, an `A` record for your `rancher_hostname` will be automatically created in your Route53 hosted zone, pointing to the public IP of the Azure Load Balancer.
 
 Additionally, `A` records for each node (`rancher-node1.mydomain.com`, `rancher-node2.mydomain.com`, etc.) will be created using the `domain_name` variable, pointing to their respective public IP addresses. This allows for direct SSH access using a predictable FQDN.
 
