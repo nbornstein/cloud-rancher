@@ -90,7 +90,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   name                = "vm-rke2-node-${count.index + 1}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  size                = var.azure_vm_size
+  size                = var.azure_rancher_vm_size
   admin_username      = var.azure_admin_username
   availability_set_id = azurerm_availability_set.avset.id
 
@@ -187,7 +187,7 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   name                = "vm-downstream-node-${count.index + 1}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  size                = var.azure_vm_size
+  size                = var.azure_downstream_vm_size
   admin_username      = var.azure_admin_username
   availability_set_id = azurerm_availability_set.avset.id
 

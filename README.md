@@ -67,7 +67,8 @@ You will also need the following from the SUSE Customer Center:
 
     azure_location            = "westus"
     azure_resource_group_name = "rg-my-rancher-cluster"
-    azure_vm_size             = "Standard_D4s_v5"
+    azure_rancher_vm_size     = "Standard_D4s_v5"
+    azure_downstream_vm_size  = "Standard_D4s_v5"
     rke2_node_count           = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
     downstream_node_count     = 1 # Number of downstream nodes to create
     rancher_hostname          = "rancher.mydomain.com"

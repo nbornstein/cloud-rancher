@@ -8,10 +8,16 @@ variable "azure_resource_group_name" {
   description = "Azure resource group name"
 }
 
-variable "azure_vm_size" {
+variable "azure_rancher_vm_size" {
   type        = string
   default     = "Standard_D4s_v5"
-  description = "Azure VM size for RKE2 control plane/worker nodes"
+  description = "Azure VM size for the RKE2/Rancher management cluster nodes"
+}
+
+variable "azure_downstream_vm_size" {
+  type        = string
+  default     = "Standard_D4s_v5"
+  description = "Azure VM size for the downstream RKE2/K3S SLES nodes"
 }
 
 variable "rke2_node_count" {
