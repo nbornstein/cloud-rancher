@@ -217,7 +217,7 @@ Once the repository is added, the AI Assistant extension will become available f
 The deployment script automatically configures Rancher to use Google Gemini. You can verify these settings in the UI.
 
 1.  Navigate to `☰ > Global Settings` and select **rancher-ai**.
-2.  Confirm that the **LLM Provider** is set to `google-gemini` and the **Gemini LLM Model** matches the value set for the `gemini_model` variable in your `terraform.tfvars` file. The API key is already configured via a Kubernetes secret in the `cattle-system` namespace and does not need to be entered in the UI.
+2.  Confirm that the **LLM Provider** is set to `google-gemini`, the **Gemini LLM Model** matches the value set for the `gemini_model` variable in your `terraform.tfvars` file, and the **API Key** field is populated. The key is passed directly to the `rancher-ai-agent` Helm chart at install time via the `gemini_api_key` variable and does not need to be entered in the UI.
 3.  Click `Install UI Tools` to enable the UI components.
 
 ## Cleanup

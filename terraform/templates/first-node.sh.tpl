@@ -253,26 +253,17 @@ echo "Rancher deployment is ready."
 # 10. Configure Rancher AI (Liz) with Google Gemini
 echo "Configuring Rancher AI with Google Gemini..."
 
-# Create the secret for the Gemini API key.
-# Using apply with dry-run to make this step idempotent. The explicit kubeconfig is removed
-# as it's already in the environment.
+# Install the AI agent, configured for Google Gemini.
 # set +x/-x brackets this so the API key isn't traced into cloud-init logs.
 set +x
-kubectl create secret generic llm-provider-google-gemini \
-  --namespace cattle-system \
-  --from-literal=apiKey="${gemini_api_key}" \
-  --dry-run=client -o yaml | kubectl apply -f -
-set -x
-
-# Install the AI agent. The Helm chart does not need the API key directly,
-# as the Rancher backend is configured to read it from the secret created above.
-# This avoids exposing the secret in the shell's process list.
 helm install rancher-ai-agent \
   --namespace cattle-ai-agent-system \
   --create-namespace \
   --set activeLlm=gemini \
   --set geminiLlmModel="${gemini_model}" \
+  --set googleApiKey="${gemini_api_key}" \
   oci://registry.suse.com/rancher/charts/rancher-ai-agent
+set -x
 
 # Final health check to ensure Rancher is fully available before script exits.
 # This polls the ingress endpoint to confirm the application is responsive.
