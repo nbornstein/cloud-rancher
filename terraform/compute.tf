@@ -213,9 +213,6 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
     version   = "latest"
   }
 
-  # This user_data script is intended to prepare the node for joining a downstream cluster.
-  # You will need to create a 'templates/downstream-node.sh.tpl' file.
-  # A basic template would register the system with SUSE.
   user_data = local.downstream_user_data
 
 
@@ -325,9 +322,8 @@ resource "null_resource" "wait_for_rancher" {
     # This resource logically depends on the first VM where Rancher is installed.
     vm_id            = azurerm_linux_virtual_machine.rancher_vm[0].id
     rancher_hostname = var.rancher_hostname
-    # The lb_pip resource is assumed to be in a separate loadbalancer.tf file
-    lb_public_ip    = azurerm_public_ip.lb_pip.ip_address
-    use_letsencrypt = var.use_letsencrypt
+    lb_public_ip     = azurerm_public_ip.lb_pip.ip_address
+    use_letsencrypt  = var.use_letsencrypt
   }
 
   provisioner "local-exec" {
