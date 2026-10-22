@@ -27,7 +27,7 @@ resource "aws_route53_record" "rancher_node_dns" {
   ttl             = 300
 
   # Point the A record to the public IP of the corresponding Azure VM
-  records = [azurerm_public_ip.node_pip[count.index].ip_address]
+  records = [azurerm_public_ip.rke2_node_pip[count.index].ip_address]
 }
 
 resource "aws_route53_record" "downstream_node_dns" {

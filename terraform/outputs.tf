@@ -10,7 +10,7 @@ output "load_balancer_public_ip" {
 
 output "rke2_node_public_ips" {
   description = "Public IP addresses of the RKE2 management cluster nodes, in node order (node 1 is the Rancher server)"
-  value       = azurerm_public_ip.node_pip[*].ip_address
+  value       = azurerm_public_ip.rke2_node_pip[*].ip_address
 }
 
 output "downstream_node_public_ips" {
@@ -20,10 +20,10 @@ output "downstream_node_public_ips" {
 
 output "ssh_connection_commands" {
   description = "Ready-to-use SSH commands for each RKE2 management node"
-  value       = [for ip in azurerm_public_ip.node_pip[*].ip_address : "ssh ${var.azure_admin_username}@${ip}"]
+  value       = [for ip in azurerm_public_ip.rke2_node_pip[*].ip_address : "ssh ${var.azure_admin_username}@${ip}"]
 }
 
 output "kubeconfig_fetch_command" {
   description = "Command to retrieve the kubeconfig from the first RKE2 node (rewrite the server address to the load balancer IP before using it remotely)"
-  value       = "ssh ${var.azure_admin_username}@${azurerm_public_ip.node_pip[0].ip_address} sudo cat /etc/rancher/rke2/rke2.yaml"
+  value       = "ssh ${var.azure_admin_username}@${azurerm_public_ip.rke2_node_pip[0].ip_address} sudo cat /etc/rancher/rke2/rke2.yaml"
 }

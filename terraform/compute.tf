@@ -55,7 +55,7 @@ resource "azurerm_availability_set" "avset" {
 }
 
 # Public IPs for direct SSH management
-resource "azurerm_public_ip" "node_pip" {
+resource "azurerm_public_ip" "rke2_node_pip" {
   count               = var.rke2_node_count
   name                = "pip-rke2-node-${count.index + 1}"
   location            = azurerm_resource_group.rg.location
@@ -64,7 +64,7 @@ resource "azurerm_public_ip" "node_pip" {
   sku                 = "Standard"
 }
 
-resource "azurerm_network_interface" "nic" {
+resource "azurerm_network_interface" "rke2_nic" {
   count               = var.rke2_node_count
   name                = "nic-rke2-node-${count.index + 1}"
   location            = azurerm_resource_group.rg.location
@@ -74,18 +74,18 @@ resource "azurerm_network_interface" "nic" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.node_pip[count.index].id
+    public_ip_address_id          = azurerm_public_ip.rke2_node_pip[count.index].id
   }
 }
 
-resource "azurerm_network_interface_backend_address_pool_association" "nic_lb_assoc" {
+resource "azurerm_network_interface_backend_address_pool_association" "rke2_nic_lb_assoc" {
   count                   = var.rke2_node_count
-  network_interface_id    = azurerm_network_interface.nic[count.index].id
+  network_interface_id    = azurerm_network_interface.rke2_nic[count.index].id
   ip_configuration_name   = "internal"
   backend_address_pool_id = azurerm_lb_backend_address_pool.backend_pool.id
 }
 
-resource "azurerm_linux_virtual_machine" "vm" {
+resource "azurerm_linux_virtual_machine" "rke2_vm" {
   count               = var.rke2_node_count
   name                = "vm-rke2-node-${count.index + 1}"
   resource_group_name = azurerm_resource_group.rg.name
@@ -95,7 +95,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   availability_set_id = azurerm_availability_set.avset.id
 
   network_interface_ids = [
-    azurerm_network_interface.nic[count.index].id,
+    azurerm_network_interface.rke2_nic[count.index].id,
   ]
 
   # The first node's boot script requests a Let's Encrypt certificate for
@@ -149,7 +149,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
       sles_reg_code    = var.sles_reg_code,
       rke2_token       = var.rke2_token,
       lb_ip            = azurerm_public_ip.lb_pip.ip_address,
-      first_node_ip    = azurerm_network_interface.nic[0].private_ip_address,
+      first_node_ip    = azurerm_network_interface.rke2_nic[0].private_ip_address,
       rancher_hostname = var.rancher_hostname
     })
   )
@@ -268,7 +268,7 @@ resource "null_resource" "scc_deregister_rke2_nodes" {
     scc_password        = var.scc_password
     script_path         = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
-    vm_id = azurerm_linux_virtual_machine.vm[count.index].id
+    vm_id = azurerm_linux_virtual_machine.rke2_vm[count.index].id
   }
 
   provisioner "local-exec" {
@@ -323,7 +323,7 @@ resource "null_resource" "wait_for_rancher" {
   # It also makes the dependency on the load balancer's IP explicit.
   triggers = {
     # This resource logically depends on the first VM where Rancher is installed.
-    vm_id            = azurerm_linux_virtual_machine.vm[0].id
+    vm_id            = azurerm_linux_virtual_machine.rke2_vm[0].id
     rancher_hostname = var.rancher_hostname
     # The lb_pip resource is assumed to be in a separate loadbalancer.tf file
     lb_public_ip    = azurerm_public_ip.lb_pip.ip_address
