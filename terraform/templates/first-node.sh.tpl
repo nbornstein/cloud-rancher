@@ -22,6 +22,8 @@ tls-san:
 cni:
   - canal
 write-kubeconfig-mode: "0640"
+ingress-controller:
+  - ${rke2_ingress_controller}
 EOF
 
 # 4. Install & Start RKE2
@@ -47,10 +49,11 @@ kubectl wait --for=condition=Available deployment/rke2-coredns-rke2-coredns -n k
   echo "Error: Timed out waiting for CoreDNS (deployment/rke2-coredns-rke2-coredns) to become available." >&2
   exit 1
 }
-# RKE2's packaged ingress-nginx addon runs as a DaemonSet, not a Deployment, so it
-# has no "Available" condition; wait on rollout status instead.
-kubectl rollout status daemonset/rke2-ingress-nginx-controller -n kube-system --timeout=300s || {
-  echo "Error: Timed out waiting for ingress-nginx (daemonset/rke2-ingress-nginx-controller) to become ready." >&2
+# RKE2's packaged ingress controller (ingress-nginx, or traefik from v1.36 onward)
+# runs as a DaemonSet, not a Deployment, so it has no "Available" condition; wait on
+# rollout status instead.
+kubectl rollout status daemonset/${ingress_daemonset_name} -n kube-system --timeout=300s || {
+  echo "Error: Timed out waiting for the ingress controller (daemonset/${ingress_daemonset_name}) to become ready." >&2
   exit 1
 }
 echo "RKE2 core components are ready."
@@ -85,7 +88,7 @@ spec:
     solvers:
     - http01:
         ingress:
-          class: nginx
+          ingressClassName: ${ingress_class_name}
 EOF
 %{ endif ~}
 # 8. Deploy Rancher via Helm
@@ -234,9 +237,9 @@ helm upgrade --install rancher rancher-prime/rancher \
   $RANCHER_VERSION_OPTS \
   --set hostname=${rancher_hostname} \
   --set bootstrapPassword=${rancher_bootstrap_password} \
+  --set ingress.ingressClassName=${ingress_class_name} \
   $TLS_SOURCE_OPTS \
-  $PRIVATE_CA_OPTS \
-  # ... (keep any other --set flags you have for rancher, like for Gemini AI)
+  $PRIVATE_CA_OPTS
 set -x
 
 

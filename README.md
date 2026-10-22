@@ -77,11 +77,10 @@ You will also need the following from the SUSE Customer Center:
     azure_admin_username      = "azureuser"
 
     # Optional: Specify component versions for a repeatable deployment.
-    # Defaults to "v1.35.9+rke2r1" if omitted. RKE2 v1.36+ switches the default
-    # packaged ingress controller from ingress-nginx to Traefik; this project's
-    # cert-manager/Rancher bootstrap still assumes ingress-nginx, so only pin a
-    # v1.36+ version (or "" for latest) if you've also updated the ingress-nginx
-    # readiness wait and the cert-manager ClusterIssuer's HTTP-01 solver.
+    # Defaults to "v1.35.9+rke2r1" (ingress-nginx) if omitted. Set this to a
+    # v1.36+ release, or "" for the latest release, to use Traefik instead -
+    # the ingress controller, cert-manager ClusterIssuer, and Rancher Helm
+    # chart are all configured automatically to match whichever one applies.
     # rke2_version           = "v1.35.9+rke2r1"
     # cert_manager_version   = "v1.13.1"
     # rancher_version        = "2.9.1"

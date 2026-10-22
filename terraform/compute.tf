@@ -5,6 +5,20 @@ data "aws_secretsmanager_secret_version" "custom_cert" {
 }
 
 locals {
+  # Starting with RKE2 v1.36, Traefik replaces ingress-nginx as the default packaged
+  # ingress controller (see var.rke2_version). Derive which one this deployment uses
+  # from the version string itself, so the two stay in sync automatically instead of
+  # relying on a separate toggle that could drift from the pinned version.
+  # An empty rke2_version means "install the absolute latest release", which is >= 1.36.
+  rke2_version_parts = var.rke2_version == "" ? ["1", "36"] : regex("^v(\\d+)\\.(\\d+)", var.rke2_version)
+  use_traefik = (
+    tonumber(local.rke2_version_parts[0]) > 1 ||
+    (tonumber(local.rke2_version_parts[0]) == 1 && tonumber(local.rke2_version_parts[1]) >= 36)
+  )
+  rke2_ingress_controller = local.use_traefik ? "traefik" : "ingress-nginx"
+  ingress_daemonset_name  = local.use_traefik ? "rke2-traefik" : "rke2-ingress-nginx-controller"
+  ingress_class_name      = local.use_traefik ? "traefik" : "nginx"
+
   downstream_user_data_path = "${path.module}/templates/downstream-node.sh.tpl"
   downstream_user_data_content = fileexists(local.downstream_user_data_path) ? templatefile(local.downstream_user_data_path, {
     sles_reg_code = var.sles_reg_code
@@ -142,12 +156,16 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
       tls_key_b64                = local.tls_key_b64,
       ca_cert_b64                = local.ca_cert_b64,
       rke2_version               = var.rke2_version,
+      rke2_ingress_controller    = local.rke2_ingress_controller,
+      ingress_daemonset_name     = local.ingress_daemonset_name,
+      ingress_class_name         = local.ingress_class_name,
       cert_manager_version       = var.cert_manager_version,
       rancher_version            = var.rancher_version
     }) :
     templatefile("${path.module}/templates/join-node.sh.tpl", {
       sles_reg_code    = var.sles_reg_code,
       rke2_token       = var.rke2_token,
+      rke2_version     = var.rke2_version,
       lb_ip            = azurerm_public_ip.lb_pip.ip_address,
       first_node_ip    = azurerm_network_interface.rancher_nic[0].private_ip_address,
       rancher_hostname = var.rancher_hostname

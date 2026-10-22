@@ -61,13 +61,13 @@ variable "rke2_token" {
 variable "rke2_version" {
   description = <<-EOT
     The version of RKE2 to install (e.g., v1.35.9+rke2r1). Defaults to the
-    latest v1.35.x release rather than the overall latest RKE2 release:
+    latest v1.35.x release rather than the overall latest RKE2 release, since
     starting with RKE2 v1.36, Traefik replaces ingress-nginx as the default
-    packaged ingress controller, and this project's cert-manager/Rancher
-    bootstrap still assumes ingress-nginx. Only set this to "" (install the
-    absolute latest RKE2 release) or a v1.36+ version if you have also
-    updated the ingress-nginx readiness wait and the cert-manager
-    ClusterIssuer's HTTP-01 solver to target Traefik instead.
+    packaged ingress controller. This project detects which one is in play
+    from this version string (treating "" as the latest release, i.e. >= 1.36)
+    and configures RKE2, cert-manager's ClusterIssuer, and the Rancher Helm
+    chart to use the matching ingress controller automatically - no other
+    changes are needed to move between them.
   EOT
   type        = string
   default     = "v1.35.9+rke2r1"
