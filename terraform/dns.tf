@@ -1,7 +1,7 @@
 resource "aws_route53_record" "rancher_dns" {
-  # This resource is created only if create_dns_record is true and a zone ID is provided.
+  # This resource is created only if aws_create_dns_record is true and a zone ID is provided.
   # It assumes an azurerm_public_ip resource named "lb_pip" exists for the load balancer.
-  count = var.create_dns_record && var.aws_route53_zone_id != null ? 1 : 0
+  count = var.aws_create_dns_record && var.aws_route53_zone_id != null ? 1 : 0
 
   # This depends on an external variable, so you must provide the zone_id
   zone_id = var.aws_route53_zone_id
@@ -16,8 +16,8 @@ resource "aws_route53_record" "rancher_dns" {
 }
 
 resource "aws_route53_record" "rancher_node_dns" {
-  # Create one record for each VM if create_dns_record is true.
-  count = var.create_dns_record && var.aws_route53_zone_id != null && var.domain_name != null ? var.rke2_node_count : 0
+  # Create one record for each VM if aws_create_dns_record is true.
+  count = var.aws_create_dns_record && var.aws_route53_zone_id != null && var.domain_name != null ? var.rke2_node_count : 0
 
   zone_id = var.aws_route53_zone_id
   # Creates rancher-node1.suse-southeast.com, rancher-node2.suse-southeast.com, etc.
@@ -31,8 +31,8 @@ resource "aws_route53_record" "rancher_node_dns" {
 }
 
 resource "aws_route53_record" "downstream_node_dns" {
-  # Create one record for each downstream VM if create_dns_record is true.
-  count = var.create_dns_record && var.aws_route53_zone_id != null && var.domain_name != null ? var.downstream_node_count : 0
+  # Create one record for each downstream VM if aws_create_dns_record is true.
+  count = var.aws_create_dns_record && var.aws_route53_zone_id != null && var.domain_name != null ? var.downstream_node_count : 0
 
   zone_id = var.aws_route53_zone_id
   # Creates downstream-node1.mydomain.com, downstream-node2.mydomain.com, etc.

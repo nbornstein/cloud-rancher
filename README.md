@@ -66,14 +66,14 @@ You will also need the following from the SUSE Customer Center:
     # terraform/terraform.tfvars
 
     azure_location         = "westus"
-    resource_group_name    = "rg-my-rancher-cluster"
-    vm_size                = "Standard_D4s_v5"
+    azure_resource_group_name = "rg-my-rancher-cluster"
+    azure_vm_size             = "Standard_D4s_v5"
     rke2_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
     downstream_node_count  = 1 # Number of downstream nodes to create
     rancher_hostname       = "rancher.mydomain.com"
     domain_name            = "mydomain.com"
     letsencrypt_email      = "my-email@example.com"
-    admin_username         = "azureuser"
+    azure_admin_username      = "azureuser"
 
     # Optional: Specify component versions for a repeatable deployment.
     # Defaults to "v1.35.9+rke2r1" if omitted. RKE2 v1.36+ switches the default
@@ -87,7 +87,7 @@ You will also need the following from the SUSE Customer Center:
 
     # --- Sensitive Values ---
     # Your SSH public key content
-    ssh_public_key         = "ssh-rsa AAAA..."
+    azure_ssh_public_key   = "ssh-rsa AAAA..."
 
     # Optional: SUSE Customer Center credentials for automatic de-registration on destroy
     scc_username           = "your-scc-username"
@@ -104,13 +104,13 @@ You will also need the following from the SUSE Customer Center:
     rancher_bootstrap_password = "a_very_strong_password_for_rancher"
 
     # Optional: AWS Route53 for automatic DNS record creation
-    create_dns_record      = true
+    aws_create_dns_record  = true
     aws_route53_zone_id    = "YOUR_ROUTE53_ZONE_ID"
     ```
 
 ## AWS IAM Permissions
 
-If you enable optional AWS integrations like Route 53 (`create_dns_record = true`) or custom certificates from AWS Secrets Manager (`use_letsencrypt = false`), the IAM user or role that Terraform uses must have the corresponding permissions.
+If you enable optional AWS integrations like Route 53 (`aws_create_dns_record = true`) or custom certificates from AWS Secrets Manager (`use_letsencrypt = false`), the IAM user or role that Terraform uses must have the corresponding permissions.
 
 You can create an IAM policy with the following JSON and attach it to your user or role. This policy grants the minimum required permissions for both features. You can remove any statement that you do not need.
 
@@ -169,7 +169,7 @@ You can create an IAM policy with the following JSON and attach it to your user 
 
 Once the deployment is complete, you can access the Rancher UI.
 
-If you have configured the AWS provider and set `create_dns_record = true`, an `A` record for your `rancher_hostname` will be automatically created in your Route53 hosted zone, pointing to the public IP of the Azure Load Balancer.
+If you have configured the AWS provider and set `aws_create_dns_record = true`, an `A` record for your `rancher_hostname` will be automatically created in your Route53 hosted zone, pointing to the public IP of the Azure Load Balancer.
 
 Additionally, `A` records for each node (`rancher-node1.mydomain.com`, `rancher-node2.mydomain.com`, etc.) will be created using the `domain_name` variable, pointing to their respective public IP addresses. This allows for direct SSH access using a predictable FQDN.
 

@@ -1,7 +1,7 @@
 data "aws_secretsmanager_secret_version" "custom_cert" {
-  count = !var.use_letsencrypt && var.tls_cert_secret_arn != "" ? 1 : 0
+  count = !var.use_letsencrypt && var.aws_tls_cert_secret_arn != "" ? 1 : 0
 
-  secret_id = var.tls_cert_secret_arn
+  secret_id = var.aws_tls_cert_secret_arn
 }
 
 locals {
@@ -24,7 +24,7 @@ locals {
   ca_crt_b64       = base64encode(local.ca_certs_pem)
 }
 
-# Without this, an empty/misconfigured tls_cert_secret_arn when use_letsencrypt = false
+# Without this, an empty/misconfigured aws_tls_cert_secret_arn when use_letsencrypt = false
 # doesn't fail here - it silently flows through as base64encode("") and only surfaces much
 # later as an obscure TLS handshake / ingress-controller failure. A variable "validation"
 # block can't reference other variables, so this uses a resource precondition instead,
@@ -35,12 +35,12 @@ resource "null_resource" "validate_custom_cert_config" {
       condition = (
         var.use_letsencrypt ||
         (
-          var.tls_cert_secret_arn != "" &&
+          var.aws_tls_cert_secret_arn != "" &&
           try(local.custom_cert_data["tls.crt"], "") != "" &&
           try(local.custom_cert_data["tls.key"], "") != ""
         )
       )
-      error_message = "When use_letsencrypt = false, tls_cert_secret_arn must point to a Secrets Manager secret containing non-empty 'tls.crt' and 'tls.key' keys."
+      error_message = "When use_letsencrypt = false, aws_tls_cert_secret_arn must point to a Secrets Manager secret containing non-empty 'tls.crt' and 'tls.key' keys."
     }
   }
 }
@@ -90,8 +90,8 @@ resource "azurerm_linux_virtual_machine" "vm" {
   name                = "vm-rke2-node-${count.index + 1}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  size                = var.vm_size
-  admin_username      = var.admin_username
+  size                = var.azure_vm_size
+  admin_username      = var.azure_admin_username
   availability_set_id = azurerm_availability_set.avset.id
 
   network_interface_ids = [
@@ -108,8 +108,8 @@ resource "azurerm_linux_virtual_machine" "vm" {
   depends_on = [aws_route53_record.rancher_dns]
 
   admin_ssh_key {
-    username   = var.admin_username
-    public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
+    username   = var.azure_admin_username
+    public_key = var.azure_ssh_public_key != null ? var.azure_ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 
   os_disk {
@@ -187,8 +187,8 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   name                = "vm-downstream-node-${count.index + 1}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  size                = var.vm_size
-  admin_username      = var.admin_username
+  size                = var.azure_vm_size
+  admin_username      = var.azure_admin_username
   availability_set_id = azurerm_availability_set.avset.id
 
   network_interface_ids = [
@@ -196,8 +196,8 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   ]
 
   admin_ssh_key {
-    username   = var.admin_username
-    public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
+    username   = var.azure_admin_username
+    public_key = var.azure_ssh_public_key != null ? var.azure_ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 
   os_disk {

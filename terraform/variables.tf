@@ -3,15 +3,15 @@ variable "azure_location" {
   description = "Azure region for resources"
 }
 
-variable "resource_group_name" {
+variable "azure_resource_group_name" {
   type        = string
-  description = "Resource group name"
+  description = "Azure resource group name"
 }
 
-variable "vm_size" {
+variable "azure_vm_size" {
   type        = string
   default     = "Standard_D4s_v5"
-  description = "VM size for RKE2 control plane/worker nodes"
+  description = "Azure VM size for RKE2 control plane/worker nodes"
 }
 
 variable "rke2_node_count" {
@@ -60,15 +60,15 @@ variable "rke2_token" {
   sensitive   = true
 }
 
-variable "admin_username" {
+variable "azure_admin_username" {
   type        = string
   default     = "azureuser"
-  description = "Admin username for SLES VMs"
+  description = "Admin username for the Azure SLES VMs"
 }
 
-variable "ssh_public_key" {
+variable "azure_ssh_public_key" {
   type        = string
-  description = "SSH Public Key content for VM access"
+  description = "SSH public key content for Azure VM access"
   default     = null # Optional fallback
 }
 
@@ -89,7 +89,7 @@ variable "aws_route53_zone_id" {
   default     = null
 }
 
-variable "create_dns_record" {
+variable "aws_create_dns_record" {
   type        = bool
   description = "If true, create a Route53 record for the Rancher hostname."
   default     = false
@@ -129,7 +129,7 @@ variable "use_letsencrypt" {
   default     = true
 }
 
-variable "tls_cert_secret_arn" {
+variable "aws_tls_cert_secret_arn" {
   description = "The ARN of the secret in AWS Secrets Manager containing the TLS certificate and key. Required if use_letsencrypt is false."
   type        = string
   default     = ""
