@@ -15,13 +15,13 @@ locals {
   # Decode the custom certificate from AWS Secrets Manager if provided.
   # Gracefully handle missing keys using try().
   custom_cert_data = length(data.aws_secretsmanager_secret_version.custom_cert) > 0 ? jsondecode(data.aws_secretsmanager_secret_version.custom_cert[0].secret_string) : {}
-  tls_crt_b64      = base64encode(try(local.custom_cert_data["tls.crt"], ""))
+  tls_cert_b64     = base64encode(try(local.custom_cert_data["tls.crt"], ""))
   tls_key_b64      = base64encode(try(local.custom_cert_data["tls.key"], ""))
   # The secret this project is actually populated with uses the key 'cacerts.pm' (a typo
   # that was never corrected at the source), so look for that first. Also accept the
   # correctly-spelled 'cacerts.pem' and 'ca.crt' for flexibility/forwards-compatibility.
-  ca_certs_pem = try(local.custom_cert_data["cacerts.pm"], try(local.custom_cert_data["cacerts.pem"], try(local.custom_cert_data["ca.crt"], "")))
-  ca_crt_b64   = base64encode(local.ca_certs_pem)
+  ca_cert_pem = try(local.custom_cert_data["cacerts.pm"], try(local.custom_cert_data["cacerts.pem"], try(local.custom_cert_data["ca.crt"], "")))
+  ca_cert_b64 = base64encode(local.ca_cert_pem)
 }
 
 # Without this, an empty/misconfigured aws_tls_cert_secret_arn when use_letsencrypt = false
@@ -138,9 +138,9 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
       gemini_api_key             = var.gemini_api_key,
       gemini_model               = var.gemini_model,
       use_letsencrypt            = var.use_letsencrypt,
-      tls_crt_b64                = local.tls_crt_b64,
+      tls_cert_b64               = local.tls_cert_b64,
       tls_key_b64                = local.tls_key_b64,
-      ca_crt_b64                 = local.ca_crt_b64,
+      ca_cert_b64                = local.ca_cert_b64,
       rke2_version               = var.rke2_version,
       cert_manager_version       = var.cert_manager_version,
       rancher_version            = var.rancher_version

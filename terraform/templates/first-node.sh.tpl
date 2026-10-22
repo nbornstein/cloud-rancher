@@ -118,13 +118,13 @@ metadata:
   namespace: cattle-system
 type: kubernetes.io/tls
 data:
-  tls.crt: ${tls_crt_b64}
+  tls.crt: ${tls_cert_b64}
   tls.key: ${tls_key_b64}
 EOF
 
 # If a CA certificate is provided, create the 'tls-ca' secret.
 # This makes Rancher trust the custom CA for downstream agents.
-%{ if ca_crt_b64 != "" ~}
+%{ if ca_cert_b64 != "" ~}
 echo "Custom CA certificate provided. Creating tls-ca secret."
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -134,7 +134,7 @@ metadata:
   namespace: cattle-system
 type: Opaque
 data:
-  cacerts.pem: ${ca_crt_b64}
+  cacerts.pem: ${ca_cert_b64}
 EOF
 PRIVATE_CA_OPTS="--set privateCA=true"
 %{ else ~}
