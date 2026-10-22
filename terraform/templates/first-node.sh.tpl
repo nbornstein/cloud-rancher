@@ -250,20 +250,47 @@ echo "Waiting for Rancher deployment to be ready..."
 kubectl rollout status deployment/rancher -n cattle-system --timeout=600s
 echo "Rancher deployment is ready."
 
-# 10. Configure Rancher AI (Liz) with Google Gemini
-echo "Configuring Rancher AI with Google Gemini..."
+# 10. Configure Rancher AI (Liz) with the selected LLM provider, if any
+%{ if ai_llm_provider == "" ~}
+echo "ai_llm_provider is unset; skipping Rancher AI Assistant installation."
+%{ else ~}
+echo "Configuring Rancher AI with LLM provider: ${ai_llm_provider}..."
 
-# Install the AI agent, configured for Google Gemini.
-# set +x/-x brackets this so the API key isn't traced into cloud-init logs.
+# Install the AI agent, configured for the selected LLM provider.
+# set +x/-x brackets this so API keys/tokens aren't traced into cloud-init logs.
 set +x
 helm install rancher-ai-agent \
   --namespace cattle-ai-agent-system \
   --create-namespace \
-  --set activeLlm=gemini \
+  --set activeLlm=${ai_llm_provider} \
+%{ if ai_llm_provider == "gemini" ~}
   --set geminiLlmModel="${gemini_model}" \
   --set googleApiKey="${gemini_api_key}" \
+%{ endif ~}
+%{ if ai_llm_provider == "openai" ~}
+  --set openaiLlmModel="${openai_model}" \
+  --set openaiApiKey="${openai_api_key}" \
+%{ endif ~}
+%{ if ai_llm_provider == "bedrock" ~}
+  --set bedrockLlmModel="${bedrock_model}" \
+  --set awsBedrock.bearerToken="${bedrock_bearer_token}" \
+  --set awsBedrock.region="${bedrock_region}" \
+%{ if bedrock_url != "" ~}
+  --set awsBedrock.url="${bedrock_url}" \
+%{ endif ~}
+%{ endif ~}
+%{ if ai_llm_provider == "ollama" ~}
+  --set ollamaLlmModel="${ollama_model}" \
+  --set ollamaUrl="${ollama_url}" \
+%{ endif ~}
+%{ if ai_llm_provider == "generic-openai" ~}
+  --set genericOpenaiLlmModel="${generic_openai_model}" \
+  --set genericOpenaiUrl="${generic_openai_url}" \
+  --set genericOpenaiApiKey="${generic_openai_api_key}" \
+%{ endif ~}
   oci://registry.suse.com/rancher/charts/rancher-ai-agent
 set -x
+%{ endif ~}
 
 # Final health check to ensure Rancher is fully available before script exits.
 # This polls the ingress endpoint to confirm the application is responsive.

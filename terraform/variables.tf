@@ -85,9 +85,23 @@ variable "rancher_version" {
   default     = ""
 }
 
+# --- AI Assistant (Rancher AI "Liz") ---
+
+variable "ai_llm_provider" {
+  type        = string
+  description = "Which LLM backend powers the Rancher AI Assistant (Liz): gemini, openai, bedrock, ollama, or generic-openai. Leave as \"\" (the default) to skip installing the AI Assistant entirely. Only the variable(s) for the selected provider need to be set."
+  default     = ""
+
+  validation {
+    condition     = contains(["", "gemini", "openai", "bedrock", "ollama", "generic-openai"], var.ai_llm_provider)
+    error_message = "ai_llm_provider must be \"\" (disabled) or one of: gemini, openai, bedrock, ollama, generic-openai."
+  }
+}
+
 variable "gemini_api_key" {
   type        = string
-  description = "API Key for Google Gemini to be used by Rancher's AI Assistant 'Liz'."
+  description = "API key for Google Gemini. Required when ai_llm_provider = \"gemini\"."
+  default     = null
   sensitive   = true
 }
 
@@ -95,6 +109,75 @@ variable "gemini_model" {
   type        = string
   description = "The Google Gemini model to use for the Rancher AI Assistant."
   default     = "gemini-3-flash-preview"
+}
+
+variable "openai_api_key" {
+  type        = string
+  description = "API key for OpenAI. Required when ai_llm_provider = \"openai\"."
+  default     = null
+  sensitive   = true
+}
+
+variable "openai_model" {
+  type        = string
+  description = "The OpenAI model to use for the Rancher AI Assistant."
+  default     = "gpt-4o"
+}
+
+variable "bedrock_model" {
+  type        = string
+  description = "The AWS Bedrock model to use for the Rancher AI Assistant."
+  default     = "global.anthropic.claude-opus-4-5-20251101-v1:0"
+}
+
+variable "bedrock_bearer_token" {
+  type        = string
+  description = "Bearer token for AWS Bedrock. Required when ai_llm_provider = \"bedrock\"."
+  default     = null
+  sensitive   = true
+}
+
+variable "bedrock_region" {
+  type        = string
+  description = "AWS region of the Bedrock model. Required when ai_llm_provider = \"bedrock\"."
+  default     = "us-east-1"
+}
+
+variable "bedrock_url" {
+  type        = string
+  description = "Optional custom Bedrock endpoint URL (e.g. a VPC endpoint). Leave blank to use the default AWS Bedrock endpoint."
+  default     = ""
+}
+
+variable "ollama_model" {
+  type        = string
+  description = "The Ollama model to use for the Rancher AI Assistant."
+  default     = "gpt-oss:120b"
+}
+
+variable "ollama_url" {
+  type        = string
+  description = "URL of the Ollama server. Required when ai_llm_provider = \"ollama\"."
+  default     = "http://ollama:11434"
+}
+
+variable "generic_openai_model" {
+  type        = string
+  description = "The model name to use with the generic OpenAI-compatible endpoint. Required when ai_llm_provider = \"generic-openai\"."
+  default     = ""
+}
+
+variable "generic_openai_url" {
+  type        = string
+  description = "URL of the OpenAI-compatible endpoint (e.g. Azure OpenAI, vLLM). Required when ai_llm_provider = \"generic-openai\"."
+  default     = ""
+}
+
+variable "generic_openai_api_key" {
+  type        = string
+  description = "API key for the generic OpenAI-compatible endpoint. Required when ai_llm_provider = \"generic-openai\"."
+  default     = null
+  sensitive   = true
 }
 
 # --- Downstream nodes ---

@@ -96,8 +96,25 @@ You will also need the following from the SUSE Customer Center:
     # SUSE and Rancher registration codes
     sles_reg_code          = "YOUR_SLES_REG_CODE"
     rancher_prime_reg_code = "YOUR_RANCHER_PRIME_REG_CODE"
-    gemini_api_key         = "YOUR_GEMINI_API_KEY"
-    gemini_model           = "gemini-3-flash-preview" # Optional: The Gemini model to use
+
+    # Optional: Rancher AI Assistant ("Liz"). Leave ai_llm_provider unset (or "")
+    # to skip installing the AI Assistant. Set it to one of: gemini, openai,
+    # bedrock, ollama, generic-openai, and only populate that provider's
+    # variable(s) below.
+    # ai_llm_provider         = "gemini"
+    # gemini_api_key          = "YOUR_GEMINI_API_KEY"
+    # gemini_model            = "gemini-3-flash-preview"
+    # openai_api_key          = "YOUR_OPENAI_API_KEY"
+    # openai_model            = "gpt-4o"
+    # bedrock_bearer_token    = "YOUR_BEDROCK_BEARER_TOKEN"
+    # bedrock_model           = "global.anthropic.claude-opus-4-5-20251101-v1:0"
+    # bedrock_region          = "us-east-1"
+    # bedrock_url             = "" # Optional: custom Bedrock VPC endpoint
+    # ollama_url              = "http://ollama:11434"
+    # ollama_model            = "gpt-oss:120b"
+    # generic_openai_url      = "https://myendpoint.example/v1"
+    # generic_openai_api_key  = "YOUR_API_KEY"
+    # generic_openai_model    = "your-model-name"
 
     # Secrets for RKE2 and Rancher
     rke2_token             = "a_secure_random_string_for_rke2"
@@ -193,7 +210,7 @@ chmod +x deregister-scc.sh
 
 ## Post-Installation Steps
 
-After the Terraform deployment is complete and you can access the Rancher UI, follow these steps to complete the setup for the Rancher AI Assistant.
+If you set `ai_llm_provider` in your `terraform.tfvars`, follow these steps after the Terraform deployment is complete to finish setting up the Rancher AI Assistant. If you left `ai_llm_provider` unset, the AI Assistant was not installed and these steps don't apply.
 
 ### 1. Add Extension Repositories
 
@@ -214,10 +231,10 @@ Once the repository is added, the AI Assistant extension will become available f
 
 ### 3. Verify AI Settings
 
-The deployment script automatically configures Rancher to use Google Gemini. You can verify these settings in the UI.
+The deployment script automatically configures Rancher to use the LLM provider set in `ai_llm_provider`. You can verify these settings in the UI.
 
 1.  Navigate to `☰ > Global Settings` and select **rancher-ai**.
-2.  Confirm that the **LLM Provider** is set to `google-gemini`, the **Gemini LLM Model** matches the value set for the `gemini_model` variable in your `terraform.tfvars` file, and the **API Key** field is populated. The key is passed directly to the `rancher-ai-agent` Helm chart at install time via the `gemini_api_key` variable and does not need to be entered in the UI.
+2.  Confirm that the **LLM Provider** matches your `ai_llm_provider` value, the model field matches the corresponding `*_model` variable, and the API key/URL field for that provider is populated. These are passed directly to the `rancher-ai-agent` Helm chart at install time and don't need to be entered in the UI.
 3.  Click `Install UI Tools` to enable the UI components.
 
 ## Cleanup

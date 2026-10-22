@@ -59,6 +59,26 @@ resource "null_resource" "validate_custom_cert_config" {
   }
 }
 
+# Each LLM provider needs its own credential/endpoint variable(s); without this,
+# selecting a provider whose variable was left unset silently installs the AI
+# Assistant with an empty API key/URL instead of failing at plan time.
+resource "null_resource" "validate_ai_llm_provider_config" {
+  lifecycle {
+    precondition {
+      condition = (
+        var.ai_llm_provider == "" ||
+        (var.ai_llm_provider == "gemini" && var.gemini_api_key != null && var.gemini_api_key != "") ||
+        (var.ai_llm_provider == "openai" && var.openai_api_key != null && var.openai_api_key != "") ||
+        (var.ai_llm_provider == "bedrock" && var.bedrock_bearer_token != null && var.bedrock_bearer_token != "") ||
+        (var.ai_llm_provider == "ollama" && var.ollama_url != null && var.ollama_url != "") ||
+        (var.ai_llm_provider == "generic-openai" && var.generic_openai_url != null && var.generic_openai_url != "" &&
+        var.generic_openai_api_key != null && var.generic_openai_api_key != "")
+      )
+      error_message = "The variable(s) required for ai_llm_provider = \"${var.ai_llm_provider}\" are not set. See variables.tf for which variable(s) each provider requires."
+    }
+  }
+}
+
 resource "azurerm_availability_set" "avset" {
   name                         = "avset-rke2"
   location                     = azurerm_resource_group.rg.location
@@ -149,8 +169,20 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
       rancher_hostname           = var.rancher_hostname,
       rancher_bootstrap_password = var.rancher_bootstrap_password,
       letsencrypt_email          = var.letsencrypt_email,
+      ai_llm_provider            = var.ai_llm_provider,
       gemini_api_key             = var.gemini_api_key,
       gemini_model               = var.gemini_model,
+      openai_api_key             = var.openai_api_key,
+      openai_model               = var.openai_model,
+      bedrock_model              = var.bedrock_model,
+      bedrock_bearer_token       = var.bedrock_bearer_token,
+      bedrock_region             = var.bedrock_region,
+      bedrock_url                = var.bedrock_url,
+      ollama_model               = var.ollama_model,
+      ollama_url                 = var.ollama_url,
+      generic_openai_model       = var.generic_openai_model,
+      generic_openai_url         = var.generic_openai_url,
+      generic_openai_api_key     = var.generic_openai_api_key,
       use_letsencrypt            = var.use_letsencrypt,
       tls_cert_b64               = local.tls_cert_b64,
       tls_key_b64                = local.tls_key_b64,
