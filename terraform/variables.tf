@@ -43,7 +43,8 @@ variable "rancher_node_count" {
 
 variable "rancher_hostname" {
   type        = string
-  description = "FQDN for Rancher UI"
+  description = "FQDN for Rancher UI. Required unless use_sslip_io is true, in which case it is derived automatically."
+  default     = null
 }
 
 variable "rancher_bootstrap_password" {
@@ -222,11 +223,19 @@ variable "scc_password" {
   sensitive   = true
 }
 
-# --- DNS (AWS Route53) ---
+# --- DNS ---
+#
+# Three ways to get a hostname pointing at the Rancher Load Balancer:
+#   1. AWS Route53 (aws_create_route53_record = true): Terraform creates the A record.
+#   2. sslip.io (use_sslip_io = true): no record to create - the hostname is derived
+#      from the Load Balancer's public IP and resolves automatically. No domain,
+#      DNS provider, or AWS account needed.
+#   3. Manual: set rancher_hostname and point it at the Load Balancer's public IP
+#      yourself (output as load_balancer_public_ip) using whatever DNS you manage.
 
 variable "domain_name" {
   type        = string
-  description = "The base domain name for the deployment (e.g., mydomain.com)."
+  description = "The base domain name for the deployment (e.g., mydomain.com). Only used with Route53."
   default     = null
 }
 
@@ -239,6 +248,12 @@ variable "aws_route53_zone_id" {
 variable "aws_create_route53_record" {
   type        = bool
   description = "If true, create a Route53 record for the Rancher hostname."
+  default     = false
+}
+
+variable "use_sslip_io" {
+  type        = bool
+  description = "If true, skip rancher_hostname/DNS entirely and auto-generate a hostname from the Load Balancer's public IP using sslip.io (e.g. 20-1-2-3.sslip.io), which resolves to that IP with no DNS record to create or own domain required."
   default     = false
 }
 

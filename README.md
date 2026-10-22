@@ -24,6 +24,8 @@ This configuration will create the following resources in your Azure subscriptio
     *   Each node in the management cluster (`rancher-node-X.mydomain.com`).
     *   Each downstream node (`downstream-node-X.mydomain.com`).
 
+Rancher needs a DNS hostname pointing at the Load Balancer's public IP (for the Let's Encrypt HTTP-01 challenge and for accessing the UI). See [DNS Options](#dns-options) below for the three ways to provide one.
+
 The first node runs a setup script via `user_data` to:
 1.  Register the SLES operating system.
 2.  Install RKE2 as a server.
@@ -55,7 +57,7 @@ You will also need the following from the SUSE Customer Center:
     ```sh
     az login
     ```
-    If you plan to use the AWS Route53 integration for DNS, make sure your AWS CLI is also configured with credentials.
+    If you plan to use the AWS Route53 integration for DNS, make sure your AWS CLI is also configured with credentials. This is not needed if you use the `sslip.io` or manual DNS options - see [DNS Options](#dns-options).
     ```sh
     aws configure
     ```
@@ -71,8 +73,6 @@ You will also need the following from the SUSE Customer Center:
     azure_downstream_vm_size  = "Standard_D4s_v5"
     rancher_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
     downstream_node_count     = 1 # Number of downstream nodes to create
-    rancher_hostname          = "rancher.mydomain.com"
-    domain_name               = "mydomain.com"
     letsencrypt_email         = "my-email@example.com"
     azure_admin_username      = "azureuser"
 
@@ -120,10 +120,28 @@ You will also need the following from the SUSE Customer Center:
     rke2_token             = "a_secure_random_string_for_rke2"
     rancher_bootstrap_password = "a_very_strong_password_for_rancher"
 
-    # Optional: AWS Route53 for automatic DNS record creation
-    aws_create_route53_record = true
-    aws_route53_zone_id       = "YOUR_ROUTE53_ZONE_ID"
+    # --- DNS: pick ONE of the following three options. See "DNS Options" below. ---
+
+    # Option 1: AWS Route53 (automatic DNS record creation)
+    # rancher_hostname          = "rancher.mydomain.com"
+    # domain_name               = "mydomain.com"
+    # aws_create_route53_record = true
+    # aws_route53_zone_id       = "YOUR_ROUTE53_ZONE_ID"
+
+    # Option 2: sslip.io (zero-config, no domain or DNS provider needed)
+    use_sslip_io = true
+
+    # Option 3: Manual DNS (you create the A record yourself)
+    # rancher_hostname = "rancher.mydomain.com"
     ```
+
+## DNS Options
+
+Rancher needs a hostname that resolves to the Azure Load Balancer's public IP, both so you can reach the UI and so cert-manager can complete the Let's Encrypt HTTP-01 challenge. Pick one:
+
+1.  **AWS Route53** (`aws_create_route53_record = true`): Terraform creates the `A` record for you in a Route53 hosted zone you own. Requires an AWS account, a domain delegated to Route53, and the IAM permissions below.
+2.  **sslip.io** (`use_sslip_io = true`): No domain, DNS provider, or AWS account needed. The hostname is derived automatically from the Load Balancer's public IP (e.g. `20-1-2-3.sslip.io`) and is available for Terraform output as `rancher_url`. `sslip.io`'s nameservers answer with the embedded IP, so there's no record to create or propagate - it resolves immediately. Leave `rancher_hostname`, `domain_name`, and the `aws_route53_*`/`aws_create_route53_record` variables unset.
+3.  **Manual**: Set `rancher_hostname` to a hostname you manage elsewhere (any DNS provider, or your own domain registrar), and point its `A` record at the Load Balancer's public IP (the `load_balancer_public_ip` Terraform output) yourself, either before or after `terraform apply`.
 
 ## AWS IAM Permissions
 
@@ -190,9 +208,11 @@ If you have configured the AWS provider and set `aws_create_route53_record = tru
 
 Additionally, `A` records for each node (`rancher-node1.mydomain.com`, `rancher-node2.mydomain.com`, etc.) will be created using the `domain_name` variable, pointing to their respective public IP addresses. This allows for direct SSH access using a predictable FQDN.
 
-If you are not using the automated DNS creation, you will need to manually create a DNS `A` record pointing to the load balancer's public IP, which is available in the Terraform output.
+If you set `use_sslip_io = true`, no DNS record is needed at all - the hostname is derived from the Load Balancer's public IP and resolves immediately. Check the `rancher_url` Terraform output for the exact hostname.
 
-After the DNS record has propagated, you can access the Rancher UI in your browser at `https://<your-rancher-hostname>`.
+If you are using neither Route53 nor `sslip.io`, you will need to manually create a DNS `A` record pointing to the load balancer's public IP, which is available in the `load_balancer_public_ip` Terraform output.
+
+After the DNS record has propagated (not applicable for `sslip.io`), you can access the Rancher UI in your browser at `https://<your-rancher-hostname>` (or the `rancher_url` output).
 
 ## Automatic De-registration
 

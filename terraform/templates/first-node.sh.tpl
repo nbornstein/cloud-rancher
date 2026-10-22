@@ -180,7 +180,7 @@ wait_for_public_dns() {
 
 if ! wait_for_public_dns; then
   echo "Error: Timed out after 10 minutes waiting for ${rancher_hostname} to resolve to ${lb_ip}." >&2
-  echo "The Let's Encrypt HTTP-01 challenge requires this to succeed first. Check the DNS record (Route53 or manual) and retry." >&2
+  echo "The Let's Encrypt HTTP-01 challenge requires this to succeed first. Check the DNS record (Route53, sslip.io, or manual) and retry." >&2
   exit 1
 fi
 

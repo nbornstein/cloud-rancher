@@ -166,7 +166,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
       rancher_prime_reg_code     = var.rancher_prime_reg_code,
       rke2_token                 = var.rke2_token,
       lb_ip                      = azurerm_public_ip.lb_pip.ip_address,
-      rancher_hostname           = var.rancher_hostname,
+      rancher_hostname           = local.rancher_hostname,
       rancher_bootstrap_password = var.rancher_bootstrap_password,
       letsencrypt_email          = var.letsencrypt_email,
       ai_llm_provider            = var.ai_llm_provider,
@@ -200,7 +200,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
       rke2_version     = var.rke2_version,
       lb_ip            = azurerm_public_ip.lb_pip.ip_address,
       first_node_ip    = azurerm_network_interface.rancher_nic[0].private_ip_address,
-      rancher_hostname = var.rancher_hostname
+      rancher_hostname = local.rancher_hostname
     })
   )
 
@@ -286,7 +286,7 @@ resource "null_resource" "scc_deregister_rancher_manager" {
   triggers = {
     # We are targeting the Rancher Manager registration, which is identified
     # in SCC by the FQDN of the Rancher instance.
-    scc_system_hostname = var.rancher_hostname
+    scc_system_hostname = local.rancher_hostname
     scc_username        = var.scc_username
     scc_password        = var.scc_password
     script_path         = "${path.module}/deregister-scc.sh"
@@ -371,7 +371,7 @@ resource "null_resource" "wait_for_rancher" {
   triggers = {
     # This resource logically depends on the first VM where Rancher is installed.
     vm_id            = azurerm_linux_virtual_machine.rancher_vm[0].id
-    rancher_hostname = var.rancher_hostname
+    rancher_hostname = local.rancher_hostname
     lb_public_ip     = azurerm_public_ip.lb_pip.ip_address
     use_letsencrypt  = var.use_letsencrypt
   }

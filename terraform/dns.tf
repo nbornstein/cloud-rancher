@@ -1,8 +1,25 @@
+locals {
+  # sslip.io resolves "<ip-with-dashes>.sslip.io" to that IP automatically - no record
+  # to create or wait on. Used in place of var.rancher_hostname everywhere a hostname
+  # is needed, so the rest of the config doesn't care which DNS option was chosen.
+  sslip_hostname   = "${replace(azurerm_public_ip.lb_pip.ip_address, ".", "-")}.sslip.io"
+  rancher_hostname = var.use_sslip_io ? local.sslip_hostname : var.rancher_hostname
+}
+
+resource "null_resource" "validate_dns_config" {
+  lifecycle {
+    precondition {
+      condition     = var.use_sslip_io || (var.rancher_hostname != null && var.rancher_hostname != "")
+      error_message = "Set rancher_hostname (used with Route53 or manually-managed DNS), or set use_sslip_io = true to auto-generate one from the Load Balancer's public IP via sslip.io."
+    }
+  }
+}
+
 resource "aws_route53_record" "rancher_dns" {
   count = var.aws_create_route53_record && var.aws_route53_zone_id != null ? 1 : 0
 
   zone_id         = var.aws_route53_zone_id
-  name            = var.rancher_hostname
+  name            = local.rancher_hostname
   allow_overwrite = true
   type            = "A"
   ttl             = 300

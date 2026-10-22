@@ -1,6 +1,6 @@
 output "rancher_url" {
   description = "URL for the Rancher UI"
-  value       = "https://${var.rancher_hostname}"
+  value       = "https://${local.rancher_hostname}"
 }
 
 output "load_balancer_public_ip" {
