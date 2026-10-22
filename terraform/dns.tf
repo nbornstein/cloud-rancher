@@ -17,7 +17,7 @@ resource "aws_route53_record" "rancher_dns" {
 
 resource "aws_route53_record" "rancher_node_dns" {
   # Create one record for each VM if aws_create_dns_record is true.
-  count = var.aws_create_dns_record && var.aws_route53_zone_id != null && var.domain_name != null ? var.rke2_node_count : 0
+  count = var.aws_create_dns_record && var.aws_route53_zone_id != null && var.domain_name != null ? var.rancher_node_count : 0
 
   zone_id = var.aws_route53_zone_id
   # Creates rancher-node1.suse-southeast.com, rancher-node2.suse-southeast.com, etc.
@@ -27,7 +27,7 @@ resource "aws_route53_record" "rancher_node_dns" {
   ttl             = 300
 
   # Point the A record to the public IP of the corresponding Azure VM
-  records = [azurerm_public_ip.rke2_node_pip[count.index].ip_address]
+  records = [azurerm_public_ip.rancher_node_pip[count.index].ip_address]
 }
 
 resource "aws_route53_record" "downstream_node_dns" {

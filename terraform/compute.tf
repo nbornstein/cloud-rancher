@@ -55,18 +55,18 @@ resource "azurerm_availability_set" "avset" {
 }
 
 # Public IPs for direct SSH management
-resource "azurerm_public_ip" "rke2_node_pip" {
-  count               = var.rke2_node_count
-  name                = "pip-rke2-node-${count.index + 1}"
+resource "azurerm_public_ip" "rancher_node_pip" {
+  count               = var.rancher_node_count
+  name                = "pip-rancher-node-${count.index + 1}"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
   sku                 = "Standard"
 }
 
-resource "azurerm_network_interface" "rke2_nic" {
-  count               = var.rke2_node_count
-  name                = "nic-rke2-node-${count.index + 1}"
+resource "azurerm_network_interface" "rancher_nic" {
+  count               = var.rancher_node_count
+  name                = "nic-rancher-node-${count.index + 1}"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
 
@@ -74,20 +74,20 @@ resource "azurerm_network_interface" "rke2_nic" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.rke2_node_pip[count.index].id
+    public_ip_address_id          = azurerm_public_ip.rancher_node_pip[count.index].id
   }
 }
 
-resource "azurerm_network_interface_backend_address_pool_association" "rke2_nic_lb_assoc" {
-  count                   = var.rke2_node_count
-  network_interface_id    = azurerm_network_interface.rke2_nic[count.index].id
+resource "azurerm_network_interface_backend_address_pool_association" "rancher_nic_lb_assoc" {
+  count                   = var.rancher_node_count
+  network_interface_id    = azurerm_network_interface.rancher_nic[count.index].id
   ip_configuration_name   = "internal"
   backend_address_pool_id = azurerm_lb_backend_address_pool.backend_pool.id
 }
 
-resource "azurerm_linux_virtual_machine" "rke2_vm" {
-  count               = var.rke2_node_count
-  name                = "vm-rke2-node-${count.index + 1}"
+resource "azurerm_linux_virtual_machine" "rancher_vm" {
+  count               = var.rancher_node_count
+  name                = "vm-rancher-node-${count.index + 1}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   size                = var.azure_rancher_vm_size
@@ -95,7 +95,7 @@ resource "azurerm_linux_virtual_machine" "rke2_vm" {
   availability_set_id = azurerm_availability_set.avset.id
 
   network_interface_ids = [
-    azurerm_network_interface.rke2_nic[count.index].id,
+    azurerm_network_interface.rancher_nic[count.index].id,
   ]
 
   # The first node's boot script requests a Let's Encrypt certificate for
@@ -149,7 +149,7 @@ resource "azurerm_linux_virtual_machine" "rke2_vm" {
       sles_reg_code    = var.sles_reg_code,
       rke2_token       = var.rke2_token,
       lb_ip            = azurerm_public_ip.lb_pip.ip_address,
-      first_node_ip    = azurerm_network_interface.rke2_nic[0].private_ip_address,
+      first_node_ip    = azurerm_network_interface.rancher_nic[0].private_ip_address,
       rancher_hostname = var.rancher_hostname
     })
   )
@@ -257,18 +257,18 @@ resource "null_resource" "scc_deregister_rancher_manager" {
   }
 }
 
-resource "null_resource" "scc_deregister_rke2_nodes" {
-  # Only create this resource if SCC credentials are provided. It runs for each RKE2 node.
-  count = var.scc_username != null && var.scc_password != null ? var.rke2_node_count : 0
+resource "null_resource" "scc_deregister_rancher_nodes" {
+  # Only create this resource if SCC credentials are provided. It runs for each Rancher node.
+  count = var.scc_username != null && var.scc_password != null ? var.rancher_node_count : 0
 
   triggers = {
     # The hostname used for registration is assumed to be the VM's name.
-    scc_system_hostname = "vm-rke2-node-${count.index + 1}"
+    scc_system_hostname = "vm-rancher-node-${count.index + 1}"
     scc_username        = var.scc_username
     scc_password        = var.scc_password
     script_path         = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
-    vm_id = azurerm_linux_virtual_machine.rke2_vm[count.index].id
+    vm_id = azurerm_linux_virtual_machine.rancher_vm[count.index].id
   }
 
   provisioner "local-exec" {
@@ -316,14 +316,14 @@ resource "null_resource" "scc_deregister_downstream_nodes" {
 # installed and ready, or until it times out. This provides feedback to the
 # user and ensures that the deployment is complete when Terraform finishes.
 resource "null_resource" "wait_for_rancher" {
-  # Only run this waiter if at least one RKE2 node is being created.
-  count = var.rke2_node_count > 0 ? 1 : 0
+  # Only run this waiter if at least one Rancher node is being created.
+  count = var.rancher_node_count > 0 ? 1 : 0
 
   # Using triggers ensures that this resource is re-evaluated if these values change.
   # It also makes the dependency on the load balancer's IP explicit.
   triggers = {
     # This resource logically depends on the first VM where Rancher is installed.
-    vm_id            = azurerm_linux_virtual_machine.rke2_vm[0].id
+    vm_id            = azurerm_linux_virtual_machine.rancher_vm[0].id
     rancher_hostname = var.rancher_hostname
     # The lb_pip resource is assumed to be in a separate loadbalancer.tf file
     lb_public_ip    = azurerm_public_ip.lb_pip.ip_address
@@ -374,7 +374,7 @@ resource "null_resource" "wait_for_rancher" {
 
       echo "Error: Timed out after 20 minutes waiting for Rancher to become healthy on HTTPS." >&2
       echo "If using Let's Encrypt, this likely means the certificate could not be obtained." >&2
-      echo "Please check the cloud-init logs on 'vm-rke2-node-1' for errors: 'sudo journalctl -u cloud-final'" >&2
+      echo "Please check the cloud-init logs on 'vm-rancher-node-1' for errors: 'sudo journalctl -u cloud-final'" >&2
       exit 1
     EOT
   }

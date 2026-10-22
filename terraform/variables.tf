@@ -11,7 +11,7 @@ variable "azure_resource_group_name" {
 variable "azure_rancher_vm_size" {
   type        = string
   default     = "Standard_D4s_v5"
-  description = "Azure VM size for the RKE2/Rancher management cluster nodes"
+  description = "Azure VM size for the Rancher management cluster nodes"
 }
 
 variable "azure_downstream_vm_size" {
@@ -20,14 +20,14 @@ variable "azure_downstream_vm_size" {
   description = "Azure VM size for the downstream RKE2/K3S SLES nodes"
 }
 
-variable "rke2_node_count" {
+variable "rancher_node_count" {
   type        = number
-  description = "Number of RKE2 management cluster nodes. Can be 1 (standalone) or 3 (HA)."
+  description = "Number of nodes in the Rancher management cluster. Can be 1 (standalone) or 3 (HA)."
   default     = 1
 
   validation {
-    condition     = contains([1, 3], var.rke2_node_count)
-    error_message = "The number of RKE2 nodes must be 1 or 3."
+    condition     = contains([1, 3], var.rancher_node_count)
+    error_message = "The number of Rancher management cluster nodes must be 1 or 3."
   }
 }
 
@@ -62,7 +62,7 @@ variable "domain_name" {
 
 variable "rke2_token" {
   type        = string
-  description = "Shared secret token for RKE2 nodes to join"
+  description = "Shared secret token used by Rancher management cluster nodes to join the RKE2 cluster"
   sensitive   = true
 }
 

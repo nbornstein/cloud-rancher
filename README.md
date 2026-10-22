@@ -69,7 +69,7 @@ You will also need the following from the SUSE Customer Center:
     azure_resource_group_name = "rg-my-rancher-cluster"
     azure_rancher_vm_size     = "Standard_D4s_v5"
     azure_downstream_vm_size  = "Standard_D4s_v5"
-    rke2_node_count           = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
+    rancher_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
     downstream_node_count     = 1 # Number of downstream nodes to create
     rancher_hostname          = "rancher.mydomain.com"
     domain_name               = "mydomain.com"
@@ -187,7 +187,7 @@ This action targets the registration associated with the Rancher Prime license, 
 This helps keep your subscriptions clean and prevents orphaned system and application entries in SCC. The process is handled by a `destroy` provisioner and requires `jq` to be installed on the machine running Terraform. If credentials are not provided, this step is skipped.
 
 *   The **Rancher Manager application** registration is identified in SCC by its FQDN (e.g., `rancher.mydomain.com`).
-*   Each **SLES VM** is identified by its machine hostname (e.g., `vm-rke2-node-1`).
+*   Each **SLES VM** is identified by its machine hostname (e.g., `vm-rancher-node-1`).
 
 **Note**: The `deregister-scc.sh` script must be executable. After creating the script, run the following command from within the `terraform` directory:
 ```sh
