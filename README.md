@@ -65,14 +65,14 @@ You will also need the following from the SUSE Customer Center:
     ```hcl
     # terraform/terraform.tfvars
 
-    azure_location         = "westus"
+    azure_location            = "westus"
     azure_resource_group_name = "rg-my-rancher-cluster"
     azure_vm_size             = "Standard_D4s_v5"
-    rke2_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
-    downstream_node_count  = 1 # Number of downstream nodes to create
-    rancher_hostname       = "rancher.mydomain.com"
-    domain_name            = "mydomain.com"
-    letsencrypt_email      = "my-email@example.com"
+    rke2_node_count           = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
+    downstream_node_count     = 1 # Number of downstream nodes to create
+    rancher_hostname          = "rancher.mydomain.com"
+    domain_name               = "mydomain.com"
+    letsencrypt_email         = "my-email@example.com"
     azure_admin_username      = "azureuser"
 
     # Optional: Specify component versions for a repeatable deployment.

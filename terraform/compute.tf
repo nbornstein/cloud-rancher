@@ -5,7 +5,7 @@ data "aws_secretsmanager_secret_version" "custom_cert" {
 }
 
 locals {
-  downstream_user_data_path    = "${path.module}/templates/downstream-node.sh.tpl"
+  downstream_user_data_path = "${path.module}/templates/downstream-node.sh.tpl"
   downstream_user_data_content = fileexists(local.downstream_user_data_path) ? templatefile(local.downstream_user_data_path, {
     sles_reg_code = var.sles_reg_code
   }) : ""
@@ -21,7 +21,7 @@ locals {
   # that was never corrected at the source), so look for that first. Also accept the
   # correctly-spelled 'cacerts.pem' and 'ca.crt' for flexibility/forwards-compatibility.
   ca_certs_pem = try(local.custom_cert_data["cacerts.pm"], try(local.custom_cert_data["cacerts.pem"], try(local.custom_cert_data["ca.crt"], "")))
-  ca_crt_b64       = base64encode(local.ca_certs_pem)
+  ca_crt_b64   = base64encode(local.ca_certs_pem)
 }
 
 # Without this, an empty/misconfigured aws_tls_cert_secret_arn when use_letsencrypt = false
@@ -128,23 +128,23 @@ resource "azurerm_linux_virtual_machine" "vm" {
   user_data = base64encode(
     count.index == 0 ?
     templatefile("${path.module}/templates/first-node.sh.tpl", {
-    sles_reg_code          = var.sles_reg_code,
-    rancher_prime_reg_code = var.rancher_prime_reg_code,
-    rke2_token             = var.rke2_token,
-    lb_ip                  = azurerm_public_ip.lb_pip.ip_address,
-    rancher_hostname       = var.rancher_hostname,
-    rancher_bootstrap_password = var.rancher_bootstrap_password,
-    letsencrypt_email      = var.letsencrypt_email,
-    gemini_api_key         = var.gemini_api_key,
-    gemini_model           = var.gemini_model,
-    use_letsencrypt        = var.use_letsencrypt,
-    tls_crt_b64            = local.tls_crt_b64,
-    tls_key_b64            = local.tls_key_b64,
-    ca_crt_b64             = local.ca_crt_b64,
-    rke2_version           = var.rke2_version,
-    cert_manager_version   = var.cert_manager_version,
-    rancher_version        = var.rancher_version
-  }) :
+      sles_reg_code              = var.sles_reg_code,
+      rancher_prime_reg_code     = var.rancher_prime_reg_code,
+      rke2_token                 = var.rke2_token,
+      lb_ip                      = azurerm_public_ip.lb_pip.ip_address,
+      rancher_hostname           = var.rancher_hostname,
+      rancher_bootstrap_password = var.rancher_bootstrap_password,
+      letsencrypt_email          = var.letsencrypt_email,
+      gemini_api_key             = var.gemini_api_key,
+      gemini_model               = var.gemini_model,
+      use_letsencrypt            = var.use_letsencrypt,
+      tls_crt_b64                = local.tls_crt_b64,
+      tls_key_b64                = local.tls_key_b64,
+      ca_crt_b64                 = local.ca_crt_b64,
+      rke2_version               = var.rke2_version,
+      cert_manager_version       = var.cert_manager_version,
+      rancher_version            = var.rancher_version
+    }) :
     templatefile("${path.module}/templates/join-node.sh.tpl", {
       sles_reg_code    = var.sles_reg_code,
       rke2_token       = var.rke2_token,
@@ -268,7 +268,7 @@ resource "null_resource" "scc_deregister_rke2_nodes" {
     scc_password        = var.scc_password
     script_path         = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
-    vm_id               = azurerm_linux_virtual_machine.vm[count.index].id
+    vm_id = azurerm_linux_virtual_machine.vm[count.index].id
   }
 
   provisioner "local-exec" {
@@ -294,7 +294,7 @@ resource "null_resource" "scc_deregister_downstream_nodes" {
     scc_password        = var.scc_password
     script_path         = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
-    vm_id               = azurerm_linux_virtual_machine.downstream_vm[count.index].id
+    vm_id = azurerm_linux_virtual_machine.downstream_vm[count.index].id
   }
 
   provisioner "local-exec" {
@@ -326,8 +326,8 @@ resource "null_resource" "wait_for_rancher" {
     vm_id            = azurerm_linux_virtual_machine.vm[0].id
     rancher_hostname = var.rancher_hostname
     # The lb_pip resource is assumed to be in a separate loadbalancer.tf file
-    lb_public_ip     = azurerm_public_ip.lb_pip.ip_address
-    use_letsencrypt  = var.use_letsencrypt
+    lb_public_ip    = azurerm_public_ip.lb_pip.ip_address
+    use_letsencrypt = var.use_letsencrypt
   }
 
   provisioner "local-exec" {
@@ -335,7 +335,7 @@ resource "null_resource" "wait_for_rancher" {
     # This script polls the Rancher health endpoint using curl.
     # For Let's Encrypt, it performs a strict check, failing if the certificate is not valid.
     # This prevents Terraform from reporting success when the certificate is bad.
-    command     = <<-EOT
+    command = <<-EOT
       echo "Waiting for Rancher server to become available with a valid certificate at https://${self.triggers.rancher_hostname}"
       echo "This can take up to 20 minutes. Polling..."
       end_time=$((SECONDS+1200)) # 20 minute timeout
