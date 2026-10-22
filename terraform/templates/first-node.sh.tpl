@@ -280,11 +280,16 @@ health_check_command() {
   %{ endif ~}
 }
 
-timeout 480s bash -c 'while ! health_check_command; do
+# `timeout ... bash -c '...'` would spawn a separate bash process that doesn't
+# inherit the health_check_command function, so poll in this shell instead,
+# using the same SECONDS-based timeout pattern as wait_for_public_dns above.
+health_check_end_time=$((SECONDS + 480))
+while ! health_check_command; do
+  if [ $SECONDS -ge $health_check_end_time ]; then
+    echo "Timed out waiting for Rancher to become healthy." >&2
+    exit 1
+  fi
   echo "Waiting for Rancher to become healthy with a valid certificate..."
   sleep 15
-done' || {
-  echo "Timed out waiting for Rancher to become healthy." >&2
-  exit 1
-}
+done
 echo "Rancher is healthy and fully available."
