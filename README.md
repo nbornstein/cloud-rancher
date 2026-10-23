@@ -24,7 +24,7 @@ This is independent of `cloud_provider` - Route53 can point at either cloud's lo
 
 Rancher needs a DNS hostname pointing at the Load Balancer's public IP (for the Let's Encrypt HTTP-01 challenge and for accessing the UI). See [DNS Options](#dns-options) below for the three ways to provide one.
 
-The first node runs a setup script via `user_data` to:
+The first node runs a setup script via the cloud's VM boot-script mechanism (`user_data` on Azure/AWS, `metadata_startup_script` on GCP) to:
 1.  Register the SLES operating system.
 2.  Install RKE2 as a server.
 3.  Install `cert-manager` for automated TLS certificate management.
@@ -87,6 +87,7 @@ You will also need the following from the SUSE Customer Center:
 
     # --- cloud_provider = "aws" ---
     # aws_region                   = "us-east-1"
+    # aws_vpc_cidr                 = "10.1.0.0/16"
     # aws_rancher_instance_type    = "m5.xlarge"
     # aws_downstream_instance_type = "m5.xlarge"
     # aws_admin_username           = "ec2-user"
@@ -186,17 +187,21 @@ Rancher's ingress needs a TLS certificate for the hostname you chose above. Pick
 1.  **Let's Encrypt** (`use_letsencrypt = true`, the default): `cert-manager` requests a certificate automatically via the HTTP-01 challenge against `rancher_hostname`, using `letsencrypt_email` as the account contact. No AWS account is needed for this option alone.
 2.  **Custom certificate from AWS Secrets Manager** (`use_letsencrypt = false`): Terraform reads `aws_tls_cert_secret_arn`, a Secrets Manager secret whose value is a JSON object with `tls.crt` and `tls.key` keys (PEM-encoded), and creates the `cattle-system/tls-rancher-ingress` secret from them. If the JSON also includes a CA certificate under `cacerts.pm` (or `cacerts.pem`/`ca.crt`), it's installed as the `cattle-system/tls-ca` secret so Rancher trusts that CA for downstream agents. Requires an AWS account and the IAM permissions below.
 
+## Azure Permissions
+
+Azure's RBAC model is much coarser-grained than AWS IAM or GCP IAM - there's no equivalent action-by-action policy to assemble. The identity you `az login` with just needs the built-in **Contributor** role, scoped to either the target subscription (if you want Terraform to create the resource group itself, the default in this project) or an existing resource group (if you pre-create one and set `azure_resource_group_name` to it). No custom role is needed for `cloud_provider = "azure"`.
+
 ## AWS IAM Permissions
 
-Several things in this project call AWS APIs, each needing its own permissions on the IAM user or role Terraform/the AWS CLI uses:
+Several things in this project call AWS APIs, each independently optional and needing its own permissions on the IAM user or role Terraform/the AWS CLI uses:
 
 *   `cloud_provider = "aws"`: creating/destroying the VPC, subnet, security group, EC2 instances, Elastic IPs, and Network Load Balancer.
 *   Route 53 (`aws_create_route53_record = true`): creating the DNS record.
 *   Custom certificates from AWS Secrets Manager (`use_letsencrypt = false`): reading the cert secret.
 
-You can create an IAM policy with the following JSON and attach it to your user or role. This policy grants the minimum required permissions for all three. Remove whichever statement(s) you don't need - e.g. drop `AllowRke2ComputeManagement` entirely if `cloud_provider = "azure"` or `"gcp"`, and drop the whole policy if neither Route53 nor Secrets Manager is in use either.
+Attach only the policy/policies below matching the integrations you're actually using - they're independent of each other and of `cloud_provider`.
 
-**Remember to replace `YOUR_ROUTE53_ZONE_ID` and `YOUR_SECRET_ARN` with your actual resource identifiers.**
+### Rancher compute (`cloud_provider = "aws"`)
 
 ```json
 {
@@ -295,7 +300,21 @@ You can create an IAM policy with the following JSON and attach it to your user 
                     "iam:AWSServiceName": "elasticloadbalancing.amazonaws.com"
                 }
             }
-        },
+        }
+    ]
+}
+```
+
+`ec2:*` and `elasticloadbalancing:*` don't support resource-level scoping for the create actions above (same reasoning AWS's own `AmazonEC2FullAccess`/`ElasticLoadBalancingFullAccess` managed policies use), so `AllowRke2ComputeManagement` is scoped by action instead - it grants nothing outside EC2/VPC/NLB.
+
+### Route 53 (`aws_create_route53_record = true`)
+
+**Remember to replace `YOUR_ROUTE53_ZONE_ID` with your actual hosted zone ID.**
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
         {
             "Sid": "AllowRoute53Management",
             "Effect": "Allow",
@@ -311,7 +330,19 @@ You can create an IAM policy with the following JSON and attach it to your user 
             "Effect": "Allow",
             "Action": "route53:GetChange",
             "Resource": "arn:aws:route53:::change/*"
-        },
+        }
+    ]
+}
+```
+
+### Secrets Manager custom TLS certificate (`use_letsencrypt = false`)
+
+**Remember to replace `YOUR_SECRET_ARN` with your actual secret ARN.**
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
         {
             "Sid": "AllowSecretsManagerRead",
             "Effect": "Allow",
@@ -322,7 +353,31 @@ You can create an IAM policy with the following JSON and attach it to your user 
 }
 ```
 
-`ec2:*` and `elasticloadbalancing:*` don't support resource-level scoping for the create actions above (same reasoning AWS's own `AmazonEC2FullAccess`/`ElasticLoadBalancingFullAccess` managed policies use), so `AllowRke2ComputeManagement` is scoped by action instead - it grants nothing outside EC2/VPC/NLB.
+## GCP IAM Permissions
+
+`cloud_provider = "gcp"` needs permission to manage a VPC network/subnetwork/firewall rules, Compute Engine instances, and the regional external passthrough Network Load Balancer (instance group, health checks, backend services, forwarding rules, and reserved addresses). Unlike AWS, GCP's IAM model is role-based rather than action-list-based, so grant these predefined roles to the principal running Terraform instead of writing a custom policy:
+
+*   `roles/compute.networkAdmin` - the VPC network, subnetwork, firewall rules, and reserved (internal/external) addresses.
+*   `roles/compute.instanceAdmin.v1` - the Compute Engine instances and the unmanaged instance group.
+*   `roles/compute.loadBalancerAdmin` - the regional health checks, backend services, and forwarding rules.
+*   `roles/iam.serviceAccountUser` - required to attach the project's default Compute Engine service account to new instances, even though this project doesn't specify a custom one.
+
+You'll also need the Compute Engine API (`compute.googleapis.com`) enabled on the target project - see [Prerequisites](#prerequisites).
+
+Grant these on your project with:
+
+```sh
+PROJECT_ID="YOUR_GCP_PROJECT_ID"
+MEMBER="user:YOUR_EMAIL@YOUR_DOMAIN" # or serviceAccount:...
+
+for ROLE in roles/compute.networkAdmin roles/compute.instanceAdmin.v1 roles/compute.loadBalancerAdmin roles/iam.serviceAccountUser; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="$MEMBER" \
+    --role="$ROLE"
+done
+```
+
+This doesn't cover Route53 or Secrets Manager - those remain AWS integrations regardless of `cloud_provider`, so use the matching AWS IAM policy above if you need them alongside GCP compute.
 
 ## Deployment
 
