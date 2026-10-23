@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -32,6 +36,14 @@ provider "aws" {
   region = coalesce(var.aws_region, "us-east-1")
 }
 
+# Used for the VPC/Compute Engine/load-balancer resources when cloud_provider = "gcp".
+# GCP has no cross-cutting integration analogous to Route53/Secrets Manager competing
+# for the default provider block, so a single unaliased block is sufficient here.
+provider "google" {
+  project = var.gcp_project
+  region  = var.gcp_region
+}
+
 # Variable "validation" blocks can't reference other variables, so cross-variable
 # requirements like "the right fields are set for the selected cloud_provider" use
 # a resource precondition instead, which runs at plan time regardless of which
@@ -44,9 +56,13 @@ resource "null_resource" "validate_cloud_provider_config" {
           var.azure_location != null && var.azure_location != "" &&
         var.azure_resource_group_name != null && var.azure_resource_group_name != "") ||
         (var.cloud_provider == "aws" &&
-        var.aws_region != null && var.aws_region != "")
+        var.aws_region != null && var.aws_region != "") ||
+        (var.cloud_provider == "gcp" &&
+          var.gcp_project != null && var.gcp_project != "" &&
+          var.gcp_region != null && var.gcp_region != "" &&
+        var.gcp_zone != null && var.gcp_zone != "")
       )
-      error_message = "When cloud_provider = \"azure\", azure_location and azure_resource_group_name must be set. When cloud_provider = \"aws\", aws_region must be set."
+      error_message = "When cloud_provider = \"azure\", azure_location and azure_resource_group_name must be set. When cloud_provider = \"aws\", aws_region must be set. When cloud_provider = \"gcp\", gcp_project, gcp_region, and gcp_zone must be set."
     }
   }
 }

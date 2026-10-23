@@ -2,12 +2,12 @@
 
 variable "cloud_provider" {
   type        = string
-  description = "Which cloud hosts the RKE2/Rancher VMs, VPC/VNet, and load balancer: \"azure\" or \"aws\". (GCP support is planned but not yet implemented.) Only the variable(s) for the selected provider need to be set. This is independent of the AWS provider used for Route53 DNS records and the Secrets Manager custom TLS cert option, both of which can be used regardless of which cloud hosts the VMs."
+  description = "Which cloud hosts the RKE2/Rancher VMs, VPC/VNet, and load balancer: \"azure\", \"aws\", or \"gcp\". Only the variable(s) for the selected provider need to be set. This is independent of the AWS provider used for Route53 DNS records and the Secrets Manager custom TLS cert option, both of which can be used regardless of which cloud hosts the VMs."
   default     = "azure"
 
   validation {
-    condition     = contains(["azure", "aws"], var.cloud_provider)
-    error_message = "cloud_provider must be \"azure\" or \"aws\"."
+    condition     = contains(["azure", "aws", "gcp"], var.cloud_provider)
+    error_message = "cloud_provider must be \"azure\", \"aws\", or \"gcp\"."
   }
 }
 
@@ -80,6 +80,67 @@ variable "aws_sles_ami_owner_id" {
   default     = "679593333241"
 }
 
+# --- GCP Compute (VPC, Compute Engine, Load Balancer) ---
+#
+# Used when cloud_provider = "gcp". Distinct from the aws_route53_* and
+# aws_tls_cert_secret_arn variables above, which configure separate, optional
+# AWS integrations (DNS and custom TLS certs) available regardless of
+# cloud_provider.
+
+variable "gcp_project" {
+  type        = string
+  description = "GCP project ID to deploy into. Required when cloud_provider = \"gcp\"."
+  default     = null
+}
+
+variable "gcp_region" {
+  type        = string
+  description = "GCP region for the VPC subnetwork and the regional load balancer resources. Required when cloud_provider = \"gcp\"."
+  default     = null
+}
+
+variable "gcp_zone" {
+  type        = string
+  description = "GCP zone (within gcp_region) for the Compute Engine instances and the unmanaged instance group. Required when cloud_provider = \"gcp\"."
+  default     = null
+}
+
+variable "gcp_subnet_cidr" {
+  type        = string
+  description = "CIDR block for the subnetwork created for the RKE2 cluster."
+  default     = "10.2.0.0/24"
+}
+
+variable "gcp_admin_username" {
+  type        = string
+  description = "SSH login username pushed via instance metadata for the GCP SLES image. GCP has no baked-in default user - the guest agent creates whichever username is named in the ssh-keys metadata at boot."
+  default     = "gcpuser"
+}
+
+variable "gcp_ssh_public_key" {
+  type        = string
+  description = "SSH public key content for GCP instance access."
+  default     = null # Optional fallback to ~/.ssh/id_rsa.pub
+}
+
+variable "gcp_image_id" {
+  type        = string
+  description = "Self-link or image name to use for the SLES 15 SP7 instances. Leave \"\" to auto-discover the latest image in gcp_sles_image_family published by gcp_sles_image_project."
+  default     = ""
+}
+
+variable "gcp_sles_image_family" {
+  type        = string
+  description = "GCP image family used by the gcp_image_id auto-discovery lookup. Verified directly with `gcloud compute images list --project=suse-byos-cloud --filter=\"family~sles-15-byos\"`. Only used when gcp_image_id is \"\"."
+  default     = "sles-15-byos"
+}
+
+variable "gcp_sles_image_project" {
+  type        = string
+  description = "GCP project that publishes the SLES BYOS image family used by the gcp_image_id auto-discovery lookup."
+  default     = "suse-byos-cloud"
+}
+
 # --- Rancher management cluster ---
 
 variable "azure_rancher_vm_size" {
@@ -92,6 +153,12 @@ variable "aws_rancher_instance_type" {
   type        = string
   default     = "m5.xlarge"
   description = "EC2 instance type for the Rancher management cluster nodes"
+}
+
+variable "gcp_rancher_machine_type" {
+  type        = string
+  default     = "n2-standard-4"
+  description = "GCE machine type for the Rancher management cluster nodes"
 }
 
 variable "rancher_node_count" {
@@ -257,6 +324,12 @@ variable "aws_downstream_instance_type" {
   type        = string
   default     = "m5.xlarge"
   description = "EC2 instance type for the downstream RKE2/K3S SLES nodes"
+}
+
+variable "gcp_downstream_machine_type" {
+  type        = string
+  default     = "n2-standard-4"
+  description = "GCE machine type for the downstream RKE2/K3S SLES nodes"
 }
 
 variable "downstream_node_count" {
