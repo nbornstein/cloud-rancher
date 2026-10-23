@@ -1,13 +1,28 @@
+# --- Cloud Provider Selection ---
+
+variable "cloud_provider" {
+  type        = string
+  description = "Which cloud hosts the RKE2/Rancher VMs, VPC/VNet, and load balancer: \"azure\" or \"aws\". (GCP support is planned but not yet implemented.) Only the variable(s) for the selected provider need to be set. This is independent of the AWS provider used for Route53 DNS records and the Secrets Manager custom TLS cert option, both of which can be used regardless of which cloud hosts the VMs."
+  default     = "azure"
+
+  validation {
+    condition     = contains(["azure", "aws"], var.cloud_provider)
+    error_message = "cloud_provider must be \"azure\" or \"aws\"."
+  }
+}
+
 # --- Azure ---
 
 variable "azure_location" {
   type        = string
-  description = "Azure region for resources"
+  description = "Azure region for resources. Required when cloud_provider = \"azure\"."
+  default     = null
 }
 
 variable "azure_resource_group_name" {
   type        = string
-  description = "Azure resource group name"
+  description = "Azure resource group name. Required when cloud_provider = \"azure\"."
+  default     = null
 }
 
 variable "azure_admin_username" {
@@ -22,12 +37,61 @@ variable "azure_ssh_public_key" {
   default     = null # Optional fallback
 }
 
+# --- AWS Compute (VPC, EC2, Load Balancer) ---
+#
+# Used when cloud_provider = "aws". Distinct from the aws_route53_* and
+# aws_tls_cert_secret_arn variables below, which configure separate, optional
+# AWS integrations (DNS and custom TLS certs) available regardless of
+# cloud_provider.
+
+variable "aws_region" {
+  type        = string
+  description = "AWS region for the VPC, EC2 instances, and load balancer. Required when cloud_provider = \"aws\". Resolved independently of the AWS provider used for Route53/Secrets Manager, which continues to use your AWS CLI/environment's default region."
+  default     = null
+}
+
+variable "aws_vpc_cidr" {
+  type        = string
+  description = "CIDR block for the VPC created for the RKE2 cluster."
+  default     = "10.1.0.0/16"
+}
+
+variable "aws_admin_username" {
+  type        = string
+  description = "SSH login username for the AWS SLES AMI."
+  default     = "ec2-user"
+}
+
+variable "aws_ssh_public_key" {
+  type        = string
+  description = "SSH public key content for AWS EC2 access."
+  default     = null # Optional fallback to ~/.ssh/id_rsa.pub
+}
+
+variable "aws_ami_id" {
+  type        = string
+  description = "AMI ID to use for the SLES 15 SP7 instances. Leave \"\" to auto-discover the latest SLES 15 SP7 BYOS AMI published by aws_sles_ami_owner_id in aws_region. Override this if that lookup picks the wrong image for your account/region - check with `aws ec2 describe-images --owners <aws_sles_ami_owner_id> --filters \"Name=name,Values=suse-sles-15-sp7-byos-v????????-hvm-ssd-x86_64-prod-*\"`."
+  default     = ""
+}
+
+variable "aws_sles_ami_owner_id" {
+  type        = string
+  description = "AWS account ID that publishes the SLES AMIs used by the aws_ami_id auto-discovery lookup. Defaults to SUSE's current AWS Marketplace publishing account, verified directly with `aws ec2 describe-images --owners 679593333241 --filters \"Name=name,Values=suse-sles-15-sp7-byos*\"`. Only used when aws_ami_id is \"\"."
+  default     = "679593333241"
+}
+
 # --- Rancher management cluster ---
 
 variable "azure_rancher_vm_size" {
   type        = string
   default     = "Standard_D4s_v5"
   description = "Azure VM size for the Rancher management cluster nodes"
+}
+
+variable "aws_rancher_instance_type" {
+  type        = string
+  default     = "m5.xlarge"
+  description = "EC2 instance type for the Rancher management cluster nodes"
 }
 
 variable "rancher_node_count" {
@@ -187,6 +251,12 @@ variable "azure_downstream_vm_size" {
   type        = string
   default     = "Standard_D4s_v5"
   description = "Azure VM size for the downstream RKE2/K3S SLES nodes"
+}
+
+variable "aws_downstream_instance_type" {
+  type        = string
+  default     = "m5.xlarge"
+  description = "EC2 instance type for the downstream RKE2/K3S SLES nodes"
 }
 
 variable "downstream_node_count" {

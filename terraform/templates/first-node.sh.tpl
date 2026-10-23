@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -x
 
+# 0. Set the OS hostname. SCC registration (next step) records whatever hostname
+# is set at registration time, and the de-registration-on-destroy step looks
+# systems up by this same name - so it must be set before SUSEConnect runs, and
+# must match this naming convention on every cloud (some, like Azure, already
+# default to it; others, like AWS, don't).
+hostnamectl set-hostname "${vm_hostname}"
+
 # 1. Register SLES with SUSE Customer Center
 # set +x/-x brackets this so the registration code isn't traced into cloud-init logs.
 set +x
