@@ -1,4 +1,4 @@
-# RKE2 and Rancher Prime on Azure or AWS with Terraform
+# Cloud Rancher: RKE2 and Rancher Prime on Azure or AWS with Terraform
 
 This project contains Terraform code to deploy a RKE2 cluster on Microsoft Azure or Amazon Web Services - set `cloud_provider` to choose which. (GCP support is planned but not yet implemented.) You can choose between a single-node setup or a high-availability, three-node cluster. The first node bootstraps the cluster and installs Rancher Prime, and for an HA setup, the other two nodes join as agents.
 
