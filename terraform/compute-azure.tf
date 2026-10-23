@@ -68,7 +68,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
 
   admin_ssh_key {
     username   = var.azure_admin_username
-    public_key = var.azure_ssh_public_key != null ? var.azure_ssh_public_key : file("~/.ssh/id_rsa.pub")
+    public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 
   os_disk {
@@ -177,7 +177,7 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
 
   admin_ssh_key {
     username   = var.azure_admin_username
-    public_key = var.azure_ssh_public_key != null ? var.azure_ssh_public_key : file("~/.ssh/id_rsa.pub")
+    public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 
   os_disk {

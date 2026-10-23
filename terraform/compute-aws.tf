@@ -3,7 +3,7 @@ resource "aws_key_pair" "ssh_key" {
 
   provider   = aws.compute
   key_name   = "kp-rke2"
-  public_key = var.aws_ssh_public_key != null ? var.aws_ssh_public_key : file("~/.ssh/id_rsa.pub")
+  public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
 }
 
 # Auto-discover the latest SLES 15 SP7 BYOS AMI published by aws_sles_ami_owner_id

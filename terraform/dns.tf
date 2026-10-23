@@ -48,7 +48,7 @@ resource "aws_route53_record" "downstream_node_dns" {
   count = var.aws_create_route53_record && var.aws_route53_zone_id != null && var.domain_name != null ? var.downstream_node_count : 0
 
   zone_id = var.aws_route53_zone_id
-  # Creates downstream-node1.mydomain.com, downstream-node2.mydomain.com, etc.
+  # Creates downstream-node1.YOUR_DOMAIN, downstream-node2.YOUR_DOMAIN, etc.
   name            = "downstream-node${count.index + 1}.${var.domain_name}"
   allow_overwrite = true
   type            = "A"

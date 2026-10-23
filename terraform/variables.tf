@@ -11,6 +11,12 @@ variable "cloud_provider" {
   }
 }
 
+variable "ssh_public_key" {
+  type        = string
+  description = "SSH public key content for VM/instance access, used regardless of cloud_provider."
+  default     = null # Optional fallback to ~/.ssh/id_rsa.pub
+}
+
 # --- Azure ---
 
 variable "azure_location" {
@@ -29,12 +35,6 @@ variable "azure_admin_username" {
   type        = string
   default     = "azureuser"
   description = "Admin username for the Azure SLES VMs"
-}
-
-variable "azure_ssh_public_key" {
-  type        = string
-  description = "SSH public key content for Azure VM access"
-  default     = null # Optional fallback
 }
 
 # --- AWS Compute (VPC, EC2, Load Balancer) ---
@@ -60,12 +60,6 @@ variable "aws_admin_username" {
   type        = string
   description = "SSH login username for the AWS SLES AMI."
   default     = "ec2-user"
-}
-
-variable "aws_ssh_public_key" {
-  type        = string
-  description = "SSH public key content for AWS EC2 access."
-  default     = null # Optional fallback to ~/.ssh/id_rsa.pub
 }
 
 variable "aws_ami_id" {
@@ -115,12 +109,6 @@ variable "gcp_admin_username" {
   type        = string
   description = "SSH login username pushed via instance metadata for the GCP SLES image. GCP has no baked-in default user - the guest agent creates whichever username is named in the ssh-keys metadata at boot."
   default     = "gcpuser"
-}
-
-variable "gcp_ssh_public_key" {
-  type        = string
-  description = "SSH public key content for GCP instance access."
-  default     = null # Optional fallback to ~/.ssh/id_rsa.pub
 }
 
 variable "gcp_image_id" {
@@ -378,7 +366,7 @@ variable "scc_password" {
 
 variable "domain_name" {
   type        = string
-  description = "The base domain name for the deployment (e.g., mydomain.com). Only used with Route53."
+  description = "The base domain name for the deployment (e.g., YOUR_DOMAIN). Only used with Route53."
   default     = null
 }
 

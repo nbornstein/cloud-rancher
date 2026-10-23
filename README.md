@@ -16,9 +16,9 @@ This configuration creates the following resources in your chosen cloud account:
     *   A static public IP for the Load Balancer frontend.
 *   **Load Balancer**: Distributes traffic to the Rancher UI across the management cluster nodes - an Azure Standard Load Balancer, an AWS Network Load Balancer, or a GCP external passthrough Network Load Balancer, depending on `cloud_provider`.
 *   **Route 53 A Records**: If enabled, records are created for:
-    *   The Rancher UI FQDN (`rancher.mydomain.com`).
-    *   Each node in the management cluster (`rancher-node-X.mydomain.com`).
-    *   Each downstream node (`downstream-node-X.mydomain.com`).
+    *   The Rancher UI FQDN (`rancher.YOUR_DOMAIN`).
+    *   Each node in the management cluster (`rancher-node-X.YOUR_DOMAIN`).
+    *   Each downstream node (`downstream-node-X.YOUR_DOMAIN`).
 
 This is independent of `cloud_provider` - Route53 can point at either cloud's load balancer.
 
@@ -75,34 +75,32 @@ You will also need the following from the SUSE Customer Center:
     cloud_provider            = "azure" # or "aws" or "gcp"
     rancher_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
     downstream_node_count     = 1 # Number of downstream nodes to create
-    letsencrypt_email         = "my-email@example.com"
+    letsencrypt_email         = "YOUR_EMAIL@YOUR_DOMAIN"
+    ssh_public_key            = "ssh-rsa AAAA..." # Your SSH public key content, used regardless of cloud_provider
 
     # --- cloud_provider = "azure" ---
     azure_location            = "westus"
-    azure_resource_group_name = "rg-my-rancher-cluster"
+    azure_resource_group_name = "YOUR_RESOURCE_GROUP_NAME"
     azure_rancher_vm_size     = "Standard_D4s_v5"
     azure_downstream_vm_size  = "Standard_D4s_v5"
     azure_admin_username      = "azureuser"
-    azure_ssh_public_key      = "ssh-rsa AAAA..." # Your SSH public key content
 
     # --- cloud_provider = "aws" ---
     # aws_region                   = "us-east-1"
     # aws_rancher_instance_type    = "m5.xlarge"
     # aws_downstream_instance_type = "m5.xlarge"
     # aws_admin_username           = "ec2-user"
-    # aws_ssh_public_key           = "ssh-rsa AAAA..." # Your SSH public key content
     # aws_ami_id                   = "" # Leave "" to auto-discover the latest SLES 15 SP7 BYOS AMI
     # aws_sles_ami_owner_id        = "679593333241" # SUSE's AMI-publishing account; only used by the aws_ami_id auto-discovery lookup
 
     # --- cloud_provider = "gcp" ---
-    # gcp_project                  = "my-gcp-project-id"
+    # gcp_project                  = "YOUR_GCP_PROJECT_ID"
     # gcp_region                   = "us-central1"
     # gcp_zone                     = "us-central1-a"
     # gcp_subnet_cidr              = "10.2.0.0/24"
     # gcp_rancher_machine_type     = "n2-standard-4"
     # gcp_downstream_machine_type  = "n2-standard-4"
     # gcp_admin_username           = "gcpuser"
-    # gcp_ssh_public_key           = "ssh-rsa AAAA..." # Your SSH public key content
     # gcp_image_id                 = "" # Leave "" to auto-discover the latest SLES 15 SP7 BYOS image
     # gcp_sles_image_family        = "sles-15-byos"
     # gcp_sles_image_project       = "suse-byos-cloud"
@@ -119,8 +117,8 @@ You will also need the following from the SUSE Customer Center:
     # --- Sensitive Values ---
 
     # Optional: SUSE Customer Center credentials for automatic de-registration on destroy
-    scc_username           = "your-scc-username"
-    scc_password           = "your-scc-password"
+    scc_username           = "YOUR_SCC_USERNAME"
+    scc_password           = "YOUR_SCC_PASSWORD"
 
     # SUSE and Rancher registration codes
     sles_reg_code          = "YOUR_SLES_REG_CODE"
@@ -141,9 +139,9 @@ You will also need the following from the SUSE Customer Center:
     # bedrock_url             = "" # Optional: custom Bedrock VPC endpoint
     # ollama_url              = "http://ollama:11434"
     # ollama_model            = "gpt-oss:120b"
-    # generic_openai_url      = "https://myendpoint.example/v1"
+    # generic_openai_url      = "https://YOUR_ENDPOINT/v1"
     # generic_openai_api_key  = "YOUR_API_KEY"
-    # generic_openai_model    = "your-model-name"
+    # generic_openai_model    = "YOUR_MODEL_NAME"
 
     # Secrets for RKE2 and Rancher
     rke2_token             = "a_secure_random_string_for_rke2"
@@ -152,8 +150,8 @@ You will also need the following from the SUSE Customer Center:
     # --- DNS: pick ONE of the following three options. See "DNS Options" below. ---
 
     # Option 1: AWS Route53 (automatic DNS record creation)
-    # rancher_hostname          = "rancher.mydomain.com"
-    # domain_name               = "mydomain.com"
+    # rancher_hostname          = "rancher.YOUR_DOMAIN"
+    # domain_name               = "YOUR_DOMAIN"
     # aws_create_route53_record = true
     # aws_route53_zone_id       = "YOUR_ROUTE53_ZONE_ID"
 
@@ -161,7 +159,7 @@ You will also need the following from the SUSE Customer Center:
     use_sslip_io = true
 
     # Option 3: Manual DNS (you create the A record yourself)
-    # rancher_hostname = "rancher.mydomain.com"
+    # rancher_hostname = "rancher.YOUR_DOMAIN"
 
     # --- TLS: pick ONE of the following two options. See "TLS / Certificate Options" below. ---
 
@@ -351,7 +349,7 @@ Once the deployment is complete, you can access the Rancher UI.
 
 If you have configured the AWS provider and set `aws_create_route53_record = true`, an `A` record for your `rancher_hostname` will be automatically created in your Route53 hosted zone, pointing to the public IP of the cloud load balancer (Azure, AWS, or GCP, depending on `cloud_provider`).
 
-Additionally, `A` records for each node (`rancher-node1.mydomain.com`, `rancher-node2.mydomain.com`, etc.) will be created using the `domain_name` variable, pointing to their respective public IP addresses. This allows for direct SSH access using a predictable FQDN.
+Additionally, `A` records for each node (`rancher-node1.YOUR_DOMAIN`, `rancher-node2.YOUR_DOMAIN`, etc.) will be created using the `domain_name` variable, pointing to their respective public IP addresses. This allows for direct SSH access using a predictable FQDN.
 
 If you set `use_sslip_io = true`, no DNS record is needed at all - the hostname is derived from the Load Balancer's public IP and resolves immediately. Check the `rancher_url` Terraform output for the exact hostname.
 
@@ -363,9 +361,9 @@ After the DNS record has propagated (not applicable for `sslip.io`), you can acc
 
 If you provide `scc_username` and `scc_password` variables, Terraform will automatically de-register the **Rancher Manager instance and all SLES virtual machines** from the SUSE Customer Center when you run `terraform destroy`.
 
-This action targets the registration associated with the Rancher Prime license, which is identified in SCC by the `rancher_hostname` FQDN (e.g., `rancher.mydomain.com`). This helps keep your subscriptions clean and prevents orphaned system and application entries in SCC. The process is handled by a `destroy` provisioner and requires `jq` to be installed on the machine running Terraform. If credentials are not provided, this step is skipped.
+This action targets the registration associated with the Rancher Prime license, which is identified in SCC by the `rancher_hostname` FQDN (e.g., `rancher.YOUR_DOMAIN`). This helps keep your subscriptions clean and prevents orphaned system and application entries in SCC. The process is handled by a `destroy` provisioner and requires `jq` to be installed on the machine running Terraform. If credentials are not provided, this step is skipped.
 
-*   The **Rancher Manager application** registration is identified in SCC by its FQDN (e.g., `rancher.mydomain.com`).
+*   The **Rancher Manager application** registration is identified in SCC by its FQDN (e.g., `rancher.YOUR_DOMAIN`).
 *   Each **SLES VM** is identified by its machine hostname (e.g., `vm-rancher-node-1`).
 
 **Note**: The `deregister-scc.sh` script must be executable. After creating the script, run the following command from within the `terraform` directory:

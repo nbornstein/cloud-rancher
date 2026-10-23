@@ -19,7 +19,7 @@ locals {
   gcp_image_id = var.gcp_image_id != "" ? var.gcp_image_id : (length(data.google_compute_image.sles) > 0 ? data.google_compute_image.sles[0].self_link : "")
 
   gcp_ssh_metadata = {
-    ssh-keys = "${var.gcp_admin_username}:${var.gcp_ssh_public_key != null ? var.gcp_ssh_public_key : file("~/.ssh/id_rsa.pub")}"
+    ssh-keys = "${var.gcp_admin_username}:${var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")}"
   }
 }
 
