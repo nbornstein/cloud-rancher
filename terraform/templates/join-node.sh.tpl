@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -x
 
+# 0. Set the OS hostname (see first-node.sh.tpl for why this must come first).
+hostnamectl set-hostname "${vm_hostname}"
+
 # 1. Register SLES with SUSE Customer Center
 # set +x/-x brackets this so the registration code isn't traced into cloud-init logs.
 set +x

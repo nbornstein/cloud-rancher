@@ -2,7 +2,7 @@ locals {
   # sslip.io resolves "<ip-with-dashes>.sslip.io" to that IP automatically - no record
   # to create or wait on. Used in place of var.rancher_hostname everywhere a hostname
   # is needed, so the rest of the config doesn't care which DNS option was chosen.
-  sslip_hostname   = "${replace(azurerm_public_ip.lb_pip.ip_address, ".", "-")}.sslip.io"
+  sslip_hostname   = "${replace(local.lb_public_ip, ".", "-")}.sslip.io"
   rancher_hostname = var.use_sslip_io ? local.sslip_hostname : var.rancher_hostname
 }
 
@@ -24,8 +24,8 @@ resource "aws_route53_record" "rancher_dns" {
   type            = "A"
   ttl             = 300
 
-  # Point the A record to the public IP of the Azure Load Balancer
-  records = [azurerm_public_ip.lb_pip.ip_address]
+  # Point the A record to the public IP of the cloud load balancer
+  records = [local.lb_public_ip]
 }
 
 resource "aws_route53_record" "rancher_node_dns" {
@@ -39,8 +39,8 @@ resource "aws_route53_record" "rancher_node_dns" {
   type            = "A"
   ttl             = 300
 
-  # Point the A record to the public IP of the corresponding Azure VM
-  records = [azurerm_public_ip.rancher_node_pip[count.index].ip_address]
+  # Point the A record to the public IP of the corresponding VM
+  records = [local.rancher_node_public_ips[count.index]]
 }
 
 resource "aws_route53_record" "downstream_node_dns" {
@@ -54,6 +54,6 @@ resource "aws_route53_record" "downstream_node_dns" {
   type            = "A"
   ttl             = 300
 
-  # Point the A record to the public IP of the corresponding Azure VM
-  records = [azurerm_public_ip.downstream_node_pip[count.index].ip_address]
+  # Point the A record to the public IP of the corresponding VM
+  records = [local.downstream_node_public_ips[count.index]]
 }

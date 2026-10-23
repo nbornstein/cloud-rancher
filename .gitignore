@@ -6,4 +6,5 @@ terraform/.terraform/providers/*
 terraform/.terraform.lock.hcl
 terraform/.terraform.tfstate.lock.info
 terraform.tfstate
+terraform/rke2-compute-policy.json
 .claude/

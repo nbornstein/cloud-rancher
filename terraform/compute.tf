@@ -19,13 +19,6 @@ locals {
   ingress_daemonset_name  = local.use_traefik ? "rke2-traefik" : "rke2-ingress-nginx-controller"
   ingress_class_name      = local.use_traefik ? "traefik" : "nginx"
 
-  downstream_user_data_path = "${path.module}/templates/downstream-node.sh.tpl"
-  downstream_user_data_content = fileexists(local.downstream_user_data_path) ? templatefile(local.downstream_user_data_path, {
-    sles_reg_code = var.sles_reg_code
-  }) : ""
-  # user_data must be null or a non-empty string. An empty string will cause a provider error.
-  downstream_user_data = local.downstream_user_data_content == "" ? null : base64encode(local.downstream_user_data_content)
-
   # Decode the custom certificate from AWS Secrets Manager if provided.
   # Gracefully handle missing keys using try().
   custom_cert_data = length(data.aws_secretsmanager_secret_version.custom_cert) > 0 ? jsondecode(data.aws_secretsmanager_secret_version.custom_cert[0].secret_string) : {}
@@ -36,6 +29,19 @@ locals {
   # correctly-spelled 'cacerts.pem' and 'ca.crt' for flexibility/forwards-compatibility.
   ca_cert_pem = try(local.custom_cert_data["cacerts.pm"], try(local.custom_cert_data["cacerts.pem"], try(local.custom_cert_data["ca.crt"], "")))
   ca_cert_b64 = base64encode(local.ca_cert_pem)
+
+  # --- Cloud-agnostic views over whichever cloud_provider's resources are active ---
+  # Everything outside compute-azure.tf/compute-aws.tf (DNS, outputs, the waiters/
+  # de-registration below) reads these instead of reaching into cloud-specific
+  # resources directly, so it doesn't need to know or care which cloud is in use.
+  lb_public_ip = var.cloud_provider == "azure" ? azurerm_public_ip.lb_pip[0].ip_address : aws_eip.lb_eip[0].public_ip
+
+  rancher_vm_ids    = var.cloud_provider == "azure" ? azurerm_linux_virtual_machine.rancher_vm[*].id : aws_instance.rancher_vm[*].id
+  downstream_vm_ids = var.cloud_provider == "azure" ? azurerm_linux_virtual_machine.downstream_vm[*].id : aws_instance.downstream_vm[*].id
+  admin_username    = var.cloud_provider == "azure" ? var.azure_admin_username : var.aws_admin_username
+
+  rancher_node_public_ips    = var.cloud_provider == "azure" ? azurerm_public_ip.rancher_node_pip[*].ip_address : aws_eip.rancher_node_eip[*].public_ip
+  downstream_node_public_ips = var.cloud_provider == "azure" ? azurerm_public_ip.downstream_node_pip[*].ip_address : aws_eip.downstream_node_eip[*].public_ip
 }
 
 # Without this, an empty/misconfigured aws_tls_cert_secret_arn when use_letsencrypt = false
@@ -79,195 +85,6 @@ resource "null_resource" "validate_ai_llm_provider_config" {
   }
 }
 
-resource "azurerm_availability_set" "avset" {
-  name                         = "avset-rke2"
-  location                     = azurerm_resource_group.rg.location
-  resource_group_name          = azurerm_resource_group.rg.name
-  platform_fault_domain_count  = 2
-  platform_update_domain_count = 5
-  managed                      = true
-}
-
-# Public IPs for direct SSH management
-resource "azurerm_public_ip" "rancher_node_pip" {
-  count               = var.rancher_node_count
-  name                = "pip-rancher-node-${count.index + 1}"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-}
-
-resource "azurerm_network_interface" "rancher_nic" {
-  count               = var.rancher_node_count
-  name                = "nic-rancher-node-${count.index + 1}"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = azurerm_subnet.subnet.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.rancher_node_pip[count.index].id
-  }
-}
-
-resource "azurerm_network_interface_backend_address_pool_association" "rancher_nic_lb_assoc" {
-  count                   = var.rancher_node_count
-  network_interface_id    = azurerm_network_interface.rancher_nic[count.index].id
-  ip_configuration_name   = "internal"
-  backend_address_pool_id = azurerm_lb_backend_address_pool.backend_pool.id
-}
-
-resource "azurerm_linux_virtual_machine" "rancher_vm" {
-  count               = var.rancher_node_count
-  name                = "vm-rancher-node-${count.index + 1}"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  size                = var.azure_rancher_vm_size
-  admin_username      = var.azure_admin_username
-  availability_set_id = azurerm_availability_set.avset.id
-
-  network_interface_ids = [
-    azurerm_network_interface.rancher_nic[count.index].id,
-  ]
-
-  # The first node's boot script requests a Let's Encrypt certificate for
-  # rancher_hostname via an HTTP-01 challenge. Terraform's dependency graph
-  # has no other link between this VM and the Route53 record (it's only
-  # referenced by the DNS record, not the other way around), so without this
-  # the VM can boot and start the ACME challenge before the record even
-  # exists. This only orders the two Terraform-side API calls; the boot
-  # script still has to wait for the record to actually propagate.
-  depends_on = [aws_route53_record.rancher_dns]
-
-  admin_ssh_key {
-    username   = var.azure_admin_username
-    public_key = var.azure_ssh_public_key != null ? var.azure_ssh_public_key : file("~/.ssh/id_rsa.pub")
-  }
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 80
-  }
-
-  source_image_reference {
-    publisher = "SUSE"
-    offer     = "sles-15-sp7" # Marketplace default for SLES 15
-    sku       = "gen2"
-    version   = "latest"
-  }
-
-  user_data = base64encode(
-    count.index == 0 ?
-    templatefile("${path.module}/templates/first-node.sh.tpl", {
-      sles_reg_code              = var.sles_reg_code,
-      rancher_prime_reg_code     = var.rancher_prime_reg_code,
-      rke2_token                 = var.rke2_token,
-      lb_ip                      = azurerm_public_ip.lb_pip.ip_address,
-      rancher_hostname           = local.rancher_hostname,
-      rancher_bootstrap_password = var.rancher_bootstrap_password,
-      letsencrypt_email          = var.letsencrypt_email,
-      ai_llm_provider            = var.ai_llm_provider,
-      gemini_api_key             = var.gemini_api_key,
-      gemini_model               = var.gemini_model,
-      openai_api_key             = var.openai_api_key,
-      openai_model               = var.openai_model,
-      bedrock_model              = var.bedrock_model,
-      bedrock_bearer_token       = var.bedrock_bearer_token,
-      bedrock_region             = var.bedrock_region,
-      bedrock_url                = var.bedrock_url,
-      ollama_model               = var.ollama_model,
-      ollama_url                 = var.ollama_url,
-      generic_openai_model       = var.generic_openai_model,
-      generic_openai_url         = var.generic_openai_url,
-      generic_openai_api_key     = var.generic_openai_api_key,
-      use_letsencrypt            = var.use_letsencrypt,
-      tls_cert_b64               = local.tls_cert_b64,
-      tls_key_b64                = local.tls_key_b64,
-      ca_cert_b64                = local.ca_cert_b64,
-      rke2_version               = var.rke2_version,
-      rke2_ingress_controller    = local.rke2_ingress_controller,
-      ingress_daemonset_name     = local.ingress_daemonset_name,
-      ingress_class_name         = local.ingress_class_name,
-      cert_manager_version       = var.cert_manager_version,
-      rancher_version            = var.rancher_version
-    }) :
-    templatefile("${path.module}/templates/join-node.sh.tpl", {
-      sles_reg_code    = var.sles_reg_code,
-      rke2_token       = var.rke2_token,
-      rke2_version     = var.rke2_version,
-      lb_ip            = azurerm_public_ip.lb_pip.ip_address,
-      first_node_ip    = azurerm_network_interface.rancher_nic[0].private_ip_address,
-      rancher_hostname = local.rancher_hostname
-    })
-  )
-
-}
-
-# --- Downstream Nodes ---
-
-# Public IPs for downstream nodes for direct SSH management
-resource "azurerm_public_ip" "downstream_node_pip" {
-  count               = var.downstream_node_count
-  name                = "pip-downstream-node-${count.index + 1}"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-}
-
-resource "azurerm_network_interface" "downstream_nic" {
-  count               = var.downstream_node_count
-  name                = "nic-downstream-node-${count.index + 1}"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = azurerm_subnet.subnet.id
-    private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.downstream_node_pip[count.index].id
-  }
-}
-
-resource "azurerm_linux_virtual_machine" "downstream_vm" {
-  count               = var.downstream_node_count
-  name                = "vm-downstream-node-${count.index + 1}"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  size                = var.azure_downstream_vm_size
-  admin_username      = var.azure_admin_username
-  availability_set_id = azurerm_availability_set.avset.id
-
-  network_interface_ids = [
-    azurerm_network_interface.downstream_nic[count.index].id,
-  ]
-
-  admin_ssh_key {
-    username   = var.azure_admin_username
-    public_key = var.azure_ssh_public_key != null ? var.azure_ssh_public_key : file("~/.ssh/id_rsa.pub")
-  }
-
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 80
-  }
-
-  source_image_reference {
-    publisher = "SUSE"
-    offer     = "sles-15-sp7"
-    sku       = "gen2"
-    version   = "latest"
-  }
-
-  user_data = local.downstream_user_data
-
-
-}
-
 # --- Destroy-time De-registration ---
 
 # These null_resources act as a hook to run a de-registration script when
@@ -309,13 +126,14 @@ resource "null_resource" "scc_deregister_rancher_nodes" {
   count = var.scc_username != null && var.scc_password != null ? var.rancher_node_count : 0
 
   triggers = {
-    # The hostname used for registration is assumed to be the VM's name.
+    # The hostname used for registration is the VM's OS hostname, which the boot
+    # script sets to match this naming convention via hostnamectl on every cloud.
     scc_system_hostname = "vm-rancher-node-${count.index + 1}"
     scc_username        = var.scc_username
     scc_password        = var.scc_password
     script_path         = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
-    vm_id = azurerm_linux_virtual_machine.rancher_vm[count.index].id
+    vm_id = local.rancher_vm_ids[count.index]
   }
 
   provisioner "local-exec" {
@@ -335,13 +153,14 @@ resource "null_resource" "scc_deregister_downstream_nodes" {
   count = var.scc_username != null && var.scc_password != null ? var.downstream_node_count : 0
 
   triggers = {
-    # The hostname used for registration is assumed to be the VM's name.
+    # The hostname used for registration is the VM's OS hostname, which the boot
+    # script sets to match this naming convention via hostnamectl on every cloud.
     scc_system_hostname = "vm-downstream-node-${count.index + 1}"
     scc_username        = var.scc_username
     scc_password        = var.scc_password
     script_path         = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
-    vm_id = azurerm_linux_virtual_machine.downstream_vm[count.index].id
+    vm_id = local.downstream_vm_ids[count.index]
   }
 
   provisioner "local-exec" {
@@ -370,9 +189,9 @@ resource "null_resource" "wait_for_rancher" {
   # It also makes the dependency on the load balancer's IP explicit.
   triggers = {
     # This resource logically depends on the first VM where Rancher is installed.
-    vm_id            = azurerm_linux_virtual_machine.rancher_vm[0].id
+    vm_id            = local.rancher_vm_ids[0]
     rancher_hostname = local.rancher_hostname
-    lb_public_ip     = azurerm_public_ip.lb_pip.ip_address
+    lb_public_ip     = local.lb_public_ip
     use_letsencrypt  = var.use_letsencrypt
   }
 
