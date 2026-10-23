@@ -30,8 +30,8 @@ The first node runs a setup script via `user_data` to:
 1.  Register the SLES operating system.
 2.  Install RKE2 as a server.
 3.  Install `cert-manager` for automated TLS certificate management.
-4.  Deploy Rancher Prime via Helm, configured with Let's Encrypt.
-5.  Enable and configure the Rancher AI assistant ("Liz") with a Google Gemini provider.
+4.  Deploy Rancher Prime via Helm, with TLS from either Let's Encrypt or a custom certificate pulled from AWS Secrets Manager. See [TLS / Certificate Options](#tls--certificate-options) below.
+5.  Optionally enable and configure the Rancher AI assistant ("Liz") with one of several LLM providers (Gemini, OpenAI, Bedrock, Ollama, or a generic OpenAI-compatible endpoint).
 6.  Wait for all components to be fully initialized and healthy.
 
 In a 3-node setup, the other two management nodes run a simpler script to join the RKE2 cluster. The downstream nodes are then registered to the Rancher server.
@@ -133,6 +133,15 @@ You will also need the following from the SUSE Customer Center:
 
     # Option 3: Manual DNS (you create the A record yourself)
     # rancher_hostname = "rancher.mydomain.com"
+
+    # --- TLS: pick ONE of the following two options. See "TLS / Certificate Options" below. ---
+
+    # Option 1: Let's Encrypt (default - no extra variables needed beyond letsencrypt_email above)
+    # use_letsencrypt = true
+
+    # Option 2: Custom certificate from AWS Secrets Manager
+    # use_letsencrypt         = false
+    # aws_tls_cert_secret_arn = "YOUR_SECRET_ARN"
     ```
 
 ## DNS Options
@@ -142,6 +151,13 @@ Rancher needs a hostname that resolves to the Azure Load Balancer's public IP, b
 1.  **AWS Route53** (`aws_create_route53_record = true`): Terraform creates the `A` record for you in a Route53 hosted zone you own. Requires an AWS account, a domain delegated to Route53, and the IAM permissions below.
 2.  **sslip.io** (`use_sslip_io = true`): No domain, DNS provider, or AWS account needed. The hostname is derived automatically from the Load Balancer's public IP (e.g. `20-1-2-3.sslip.io`) and is available for Terraform output as `rancher_url`. `sslip.io`'s nameservers answer with the embedded IP, so there's no record to create or propagate - it resolves immediately. Leave `rancher_hostname`, `domain_name`, and the `aws_route53_*`/`aws_create_route53_record` variables unset.
 3.  **Manual**: Set `rancher_hostname` to a hostname you manage elsewhere (any DNS provider, or your own domain registrar), and point its `A` record at the Load Balancer's public IP (the `load_balancer_public_ip` Terraform output) yourself, either before or after `terraform apply`.
+
+## TLS / Certificate Options
+
+Rancher's ingress needs a TLS certificate for the hostname you chose above. Pick one:
+
+1.  **Let's Encrypt** (`use_letsencrypt = true`, the default): `cert-manager` requests a certificate automatically via the HTTP-01 challenge against `rancher_hostname`, using `letsencrypt_email` as the account contact. No AWS account is needed for this option alone.
+2.  **Custom certificate from AWS Secrets Manager** (`use_letsencrypt = false`): Terraform reads `aws_tls_cert_secret_arn`, a Secrets Manager secret whose value is a JSON object with `tls.crt` and `tls.key` keys (PEM-encoded), and creates the `cattle-system/tls-rancher-ingress` secret from them. If the JSON also includes a CA certificate under `cacerts.pm` (or `cacerts.pem`/`ca.crt`), it's installed as the `cattle-system/tls-ca` secret so Rancher trusts that CA for downstream agents. Requires an AWS account and the IAM permissions below.
 
 ## AWS IAM Permissions
 
