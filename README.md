@@ -9,7 +9,7 @@ This configuration creates the following resources in your chosen cloud account:
 *   **Networking**: An isolated virtual network for the cluster, a dedicated subnet for the RKE2 nodes, and firewall rules controlling inbound traffic (SSH, HTTP, HTTPS, Kube-API). On Azure this is a Resource Group, Virtual Network (VNet), Subnet, and Network Security Group (NSG); on AWS it's a VPC, Subnet, Internet Gateway/Route Table, and Security Group; on GCP it's a custom-mode VPC Network, Subnetwork, and firewall rules.
 *   **Virtual Machines**:
     *   A 1-node (standalone) or 3-node (high-availability) RKE2 cluster running on SLES 15 SP7 VMs (Azure VMs, AWS EC2 instances, or GCP Compute Engine instances). This cluster hosts the Rancher Prime management server. On Azure, these nodes also share an Availability Set for fault/update domain spreading.
-    *   A configurable number of downstream SLES VMs (defaults to 1) that will be registered as a separate cluster managed by Rancher.
+    *   A configurable number of plain SLES VMs (defaults to 1, see [Downstream Nodes](#downstream-nodes) below) intended to become downstream clusters managed by Rancher.
 *   **Public IPs**:
     *   One for each VM in the management cluster for direct SSH access.
     *   One for each downstream node VM for direct SSH access.
@@ -32,7 +32,7 @@ The first node runs a setup script via the cloud's VM boot-script mechanism (`us
 5.  Optionally enable and configure the Rancher AI assistant ("Liz") with one of several LLM providers (Gemini, OpenAI, Bedrock, Ollama, or a generic OpenAI-compatible endpoint).
 6.  Wait for all components to be fully initialized and healthy.
 
-In a 3-node setup, the other two management nodes run a simpler script to join the RKE2 cluster. The downstream nodes are then registered to the Rancher server.
+In a 3-node setup, the other two management nodes run a simpler script to join this same RKE2 cluster as additional servers. The downstream nodes provisioned alongside it are entirely separate - they are not part of the management cluster or its RKE2 install in any way. See [Downstream Nodes](#downstream-nodes) below for what happens (and doesn't happen) on them.
 
 ## Prerequisites
 
@@ -411,6 +411,18 @@ If you set `use_sslip_io = true`, no DNS record is needed at all - the hostname 
 If you are using neither Route53 nor `sslip.io`, you will need to manually create a DNS `A` record pointing to the load balancer's public IP, which is available in the `load_balancer_public_ip` Terraform output.
 
 After the DNS record has propagated (not applicable for `sslip.io`), you can access the Rancher UI in your browser at `https://<your-rancher-hostname>` (or the `rancher_url` output).
+
+## Downstream Nodes
+
+The `downstream_node_count` variable (default `1`, set to `0` to skip) provisions that many plain SLES 15 SP7 VMs alongside the management cluster. Their boot script only does two things: register the OS with SCC using `sles_reg_code` and apply the latest `zypper` updates. It does **not** install RKE2, K3s, or any other cluster software, and it does **not** import them into Rancher automatically - "downstream node" describes their intended role, not something this project does for you yet.
+
+To turn one into an actual downstream cluster Rancher manages, use Rancher's cluster registration command:
+
+1.  In the Rancher UI, go to **☰ > Cluster Management > Create** and create a new "Custom" cluster (choosing the Kubernetes distribution and version you want). This generates a node registration command rather than provisioning anything itself.
+2.  SSH into the downstream VM using the `downstream_node_public_ips` output and the admin username for your `cloud_provider` (`azureuser` on Azure, `ec2-user` on AWS, `gcpuser` on GCP) - `ssh <admin_username>@<ip>`.
+3.  Run the generated registration command on the VM. It installs the chosen Kubernetes distribution and registers the node with Rancher in one step.
+
+If you provide `scc_username`/`scc_password`, downstream nodes are de-registered from SCC on `terraform destroy` the same way management nodes are - see [Automatic De-registration](#automatic-de-registration) below.
 
 ## Automatic De-registration
 
