@@ -1,20 +1,20 @@
-# Cloud Rancher: RKE2 and Rancher Prime on Azure or AWS with Terraform
+# Cloud Rancher: RKE2 and Rancher Prime on Azure, AWS, or GCP with Terraform
 
-This project contains Terraform code to deploy a RKE2 cluster on Microsoft Azure or Amazon Web Services - set `cloud_provider` to choose which. (GCP support is planned but not yet implemented.) You can choose between a single-node setup or a high-availability, three-node cluster. The first node bootstraps the cluster and installs Rancher Prime, and for an HA setup, the other two nodes join as agents.
+This project contains Terraform code to deploy a RKE2 cluster on Microsoft Azure, Amazon Web Services, or Google Cloud Platform - set `cloud_provider` to choose which. You can choose between a single-node setup or a high-availability, three-node cluster. The first node bootstraps the cluster and installs Rancher Prime, and for an HA setup, the other two nodes join as agents.
 
 ## Architecture
 
 This configuration creates the following resources in your chosen cloud account:
 
-*   **Networking**: An isolated virtual network for the cluster, a dedicated subnet for the RKE2 nodes, and firewall rules controlling inbound traffic (SSH, HTTP, HTTPS, Kube-API). On Azure this is a Resource Group, Virtual Network (VNet), Subnet, and Network Security Group (NSG); on AWS it's a VPC, Subnet, Internet Gateway/Route Table, and Security Group.
+*   **Networking**: An isolated virtual network for the cluster, a dedicated subnet for the RKE2 nodes, and firewall rules controlling inbound traffic (SSH, HTTP, HTTPS, Kube-API). On Azure this is a Resource Group, Virtual Network (VNet), Subnet, and Network Security Group (NSG); on AWS it's a VPC, Subnet, Internet Gateway/Route Table, and Security Group; on GCP it's a custom-mode VPC Network, Subnetwork, and firewall rules.
 *   **Virtual Machines**:
-    *   A 1-node (standalone) or 3-node (high-availability) RKE2 cluster running on SLES 15 SP7 VMs (Azure VMs or AWS EC2 instances). This cluster hosts the Rancher Prime management server. On Azure, these nodes also share an Availability Set for fault/update domain spreading.
+    *   A 1-node (standalone) or 3-node (high-availability) RKE2 cluster running on SLES 15 SP7 VMs (Azure VMs, AWS EC2 instances, or GCP Compute Engine instances). This cluster hosts the Rancher Prime management server. On Azure, these nodes also share an Availability Set for fault/update domain spreading.
     *   A configurable number of downstream SLES VMs (defaults to 1) that will be registered as a separate cluster managed by Rancher.
 *   **Public IPs**:
     *   One for each VM in the management cluster for direct SSH access.
     *   One for each downstream node VM for direct SSH access.
     *   A static public IP for the Load Balancer frontend.
-*   **Load Balancer**: Distributes traffic to the Rancher UI across the management cluster nodes - an Azure Standard Load Balancer or an AWS Network Load Balancer, depending on `cloud_provider`.
+*   **Load Balancer**: Distributes traffic to the Rancher UI across the management cluster nodes - an Azure Standard Load Balancer, an AWS Network Load Balancer, or a GCP external passthrough Network Load Balancer, depending on `cloud_provider`.
 *   **Route 53 A Records**: If enabled, records are created for:
     *   The Rancher UI FQDN (`rancher.mydomain.com`).
     *   Each node in the management cluster (`rancher-node-X.mydomain.com`).
@@ -41,6 +41,7 @@ Before you begin, ensure you have the following installed and configured:
 *   Terraform (>= 1.3.0)
 *   Azure CLI (if `cloud_provider = "azure"`), with an active Azure Subscription.
 *   AWS CLI, configured with credentials (if `cloud_provider = "aws"`, or if using the Route53 or Secrets Manager custom TLS cert integrations - these are available regardless of `cloud_provider`).
+*   `gcloud` CLI (if `cloud_provider = "gcp"`), authenticated via `gcloud auth application-default login`, with the Compute Engine API enabled on the target project.
 *   jq (for SCC de-registration on destroy)
 *   An SSH public key (e.g., in `~/.ssh/id_rsa.pub`).
 
@@ -59,6 +60,10 @@ You will also need the following from the SUSE Customer Center:
         ```sh
         aws configure
         ```
+    *   For `cloud_provider = "gcp"`, authenticate with Application Default Credentials:
+        ```sh
+        gcloud auth application-default login
+        ```
 
     Either way, if you also plan to use the AWS Route53 integration for DNS or the Secrets Manager custom TLS cert option, make sure your AWS CLI is configured with credentials too (`aws configure`) - these work the same regardless of `cloud_provider`. Route53 isn't needed if you use the `sslip.io` or manual DNS options - see [DNS Options](#dns-options).
 
@@ -67,7 +72,7 @@ You will also need the following from the SUSE Customer Center:
     ```hcl
     # terraform/terraform.tfvars
 
-    cloud_provider            = "azure" # or "aws"
+    cloud_provider            = "azure" # or "aws" or "gcp"
     rancher_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
     downstream_node_count     = 1 # Number of downstream nodes to create
     letsencrypt_email         = "my-email@example.com"
@@ -88,6 +93,19 @@ You will also need the following from the SUSE Customer Center:
     # aws_ssh_public_key           = "ssh-rsa AAAA..." # Your SSH public key content
     # aws_ami_id                   = "" # Leave "" to auto-discover the latest SLES 15 SP7 BYOS AMI
     # aws_sles_ami_owner_id        = "679593333241" # SUSE's AMI-publishing account; only used by the aws_ami_id auto-discovery lookup
+
+    # --- cloud_provider = "gcp" ---
+    # gcp_project                  = "my-gcp-project-id"
+    # gcp_region                   = "us-central1"
+    # gcp_zone                     = "us-central1-a"
+    # gcp_subnet_cidr              = "10.2.0.0/24"
+    # gcp_rancher_machine_type     = "n2-standard-4"
+    # gcp_downstream_machine_type  = "n2-standard-4"
+    # gcp_admin_username           = "gcpuser"
+    # gcp_ssh_public_key           = "ssh-rsa AAAA..." # Your SSH public key content
+    # gcp_image_id                 = "" # Leave "" to auto-discover the latest SLES 15 SP7 BYOS image
+    # gcp_sles_image_family        = "sles-15-byos"
+    # gcp_sles_image_project       = "suse-byos-cloud"
 
     # Optional: Specify component versions for a repeatable deployment.
     # Defaults to "v1.35.9+rke2r1" (ingress-nginx) if omitted. Set this to a
@@ -178,7 +196,7 @@ Several things in this project call AWS APIs, each needing its own permissions o
 *   Route 53 (`aws_create_route53_record = true`): creating the DNS record.
 *   Custom certificates from AWS Secrets Manager (`use_letsencrypt = false`): reading the cert secret.
 
-You can create an IAM policy with the following JSON and attach it to your user or role. This policy grants the minimum required permissions for all three. Remove whichever statement(s) you don't need - e.g. drop `AllowRke2ComputeManagement` entirely if `cloud_provider = "azure"`.
+You can create an IAM policy with the following JSON and attach it to your user or role. This policy grants the minimum required permissions for all three. Remove whichever statement(s) you don't need - e.g. drop `AllowRke2ComputeManagement` entirely if `cloud_provider = "azure"` or `"gcp"`, and drop the whole policy if neither Route53 nor Secrets Manager is in use either.
 
 **Remember to replace `YOUR_ROUTE53_ZONE_ID` and `YOUR_SECRET_ARN` with your actual resource identifiers.**
 
@@ -331,7 +349,7 @@ You can create an IAM policy with the following JSON and attach it to your user 
 
 Once the deployment is complete, you can access the Rancher UI.
 
-If you have configured the AWS provider and set `aws_create_route53_record = true`, an `A` record for your `rancher_hostname` will be automatically created in your Route53 hosted zone, pointing to the public IP of the cloud load balancer (Azure or AWS, depending on `cloud_provider`).
+If you have configured the AWS provider and set `aws_create_route53_record = true`, an `A` record for your `rancher_hostname` will be automatically created in your Route53 hosted zone, pointing to the public IP of the cloud load balancer (Azure, AWS, or GCP, depending on `cloud_provider`).
 
 Additionally, `A` records for each node (`rancher-node1.mydomain.com`, `rancher-node2.mydomain.com`, etc.) will be created using the `domain_name` variable, pointing to their respective public IP addresses. This allows for direct SSH access using a predictable FQDN.
 

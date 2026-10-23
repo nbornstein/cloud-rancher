@@ -34,14 +34,38 @@ locals {
   # Everything outside compute-azure.tf/compute-aws.tf (DNS, outputs, the waiters/
   # de-registration below) reads these instead of reaching into cloud-specific
   # resources directly, so it doesn't need to know or care which cloud is in use.
-  lb_public_ip = var.cloud_provider == "azure" ? azurerm_public_ip.lb_pip[0].ip_address : aws_eip.lb_eip[0].public_ip
+  lb_public_ip = (
+    var.cloud_provider == "azure" ? azurerm_public_ip.lb_pip[0].ip_address :
+    var.cloud_provider == "aws" ? aws_eip.lb_eip[0].public_ip :
+    google_compute_address.lb_ip[0].address
+  )
 
-  rancher_vm_ids    = var.cloud_provider == "azure" ? azurerm_linux_virtual_machine.rancher_vm[*].id : aws_instance.rancher_vm[*].id
-  downstream_vm_ids = var.cloud_provider == "azure" ? azurerm_linux_virtual_machine.downstream_vm[*].id : aws_instance.downstream_vm[*].id
-  admin_username    = var.cloud_provider == "azure" ? var.azure_admin_username : var.aws_admin_username
+  rancher_vm_ids = (
+    var.cloud_provider == "azure" ? azurerm_linux_virtual_machine.rancher_vm[*].id :
+    var.cloud_provider == "aws" ? aws_instance.rancher_vm[*].id :
+    google_compute_instance.rancher_vm[*].id
+  )
+  downstream_vm_ids = (
+    var.cloud_provider == "azure" ? azurerm_linux_virtual_machine.downstream_vm[*].id :
+    var.cloud_provider == "aws" ? aws_instance.downstream_vm[*].id :
+    google_compute_instance.downstream_vm[*].id
+  )
+  admin_username = (
+    var.cloud_provider == "azure" ? var.azure_admin_username :
+    var.cloud_provider == "aws" ? var.aws_admin_username :
+    var.gcp_admin_username
+  )
 
-  rancher_node_public_ips    = var.cloud_provider == "azure" ? azurerm_public_ip.rancher_node_pip[*].ip_address : aws_eip.rancher_node_eip[*].public_ip
-  downstream_node_public_ips = var.cloud_provider == "azure" ? azurerm_public_ip.downstream_node_pip[*].ip_address : aws_eip.downstream_node_eip[*].public_ip
+  rancher_node_public_ips = (
+    var.cloud_provider == "azure" ? azurerm_public_ip.rancher_node_pip[*].ip_address :
+    var.cloud_provider == "aws" ? aws_eip.rancher_node_eip[*].public_ip :
+    google_compute_address.rancher_node_external_ip[*].address
+  )
+  downstream_node_public_ips = (
+    var.cloud_provider == "azure" ? azurerm_public_ip.downstream_node_pip[*].ip_address :
+    var.cloud_provider == "aws" ? aws_eip.downstream_node_eip[*].public_ip :
+    google_compute_address.downstream_node_external_ip[*].address
+  )
 }
 
 # Without this, an empty/misconfigured aws_tls_cert_secret_arn when use_letsencrypt = false
