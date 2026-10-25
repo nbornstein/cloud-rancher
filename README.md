@@ -29,7 +29,7 @@ The first node runs a setup script via the cloud's VM boot-script mechanism (`us
 2.  Install RKE2 as a server.
 3.  Install `cert-manager` for automated TLS certificate management.
 4.  Deploy Rancher Prime via Helm, with TLS from either Let's Encrypt or a custom certificate pulled from AWS Secrets Manager. See [TLS / Certificate Options](#tls--certificate-options) below.
-5.  Optionally enable and configure the Rancher AI assistant ("Liz") with one of several LLM providers (Gemini, OpenAI, Bedrock, Ollama, or a generic OpenAI-compatible endpoint).
+5.  Optionally enable and configure the Rancher AI assistant ("Liz") with one of several LLM providers (Gemini, OpenAI, Bedrock, Ollama, or a generic OpenAI-compatible endpoint), including the dashboard extension that surfaces it in the UI.
 6.  Wait for all components to be fully initialized and healthy.
 
 In a 3-node setup, the other two management nodes run a simpler script to join this same RKE2 cluster as additional servers. The downstream nodes provisioned alongside it are entirely separate - they are not part of the management cluster or its RKE2 install in any way. See [Downstream Nodes](#downstream-nodes) below for what happens (and doesn't happen) on them.
@@ -130,6 +130,7 @@ You will also need the following from the SUSE Customer Center:
     # bedrock, ollama, generic-openai, and only populate that provider's
     # variable(s) below.
     # ai_llm_provider         = "gemini"
+    # ai_ui_extension_version = "1.1.0" # Version of the rancher-ai-ui dashboard extension to install
     # gemini_api_key          = "YOUR_GEMINI_API_KEY"
     # gemini_model            = "gemini-3-flash-preview"
     # openai_api_key          = "YOUR_OPENAI_API_KEY"
@@ -440,32 +441,16 @@ chmod +x deregister-scc.sh
 
 ## Post-Installation Steps
 
-If you set `ai_llm_provider` in your `terraform.tfvars`, follow these steps after the Terraform deployment is complete to finish setting up the Rancher AI Assistant. If you left `ai_llm_provider` unset, the AI Assistant was not installed and these steps don't apply.
+If you set `ai_llm_provider` in your `terraform.tfvars`, the deployment script installs both the `rancher-ai-agent` backend (via Helm) and the `rancher-ai-ui` Dashboard extension (via a `UIPlugin` resource, pinned to `ai_ui_extension_version`) automatically - no manual steps in the Extensions page are needed. If you left `ai_llm_provider` unset, neither was installed and these steps don't apply.
 
-### 1. Add Extension Repositories
+### Verify AI Settings
 
-The Rancher UI is extended through a marketplace of extensions. You must first add the repositories that host these extensions.
+1.  Log into your Rancher UI with the bootstrap password and reload the page if the **SUSE AI Assistant** icon isn't visible yet.
+2.  Navigate to `☰ > Global Settings` and select **rancher-ai**.
+3.  Confirm that the **LLM Provider** matches your `ai_llm_provider` value, the model field matches the corresponding `*_model` variable, and the API key/URL field for that provider is populated. These are passed directly to the `rancher-ai-agent` Helm chart at install time and don't need to be entered in the UI.
+4.  Click `Install UI Tools` to enable the UI components.
 
-1.  Log into your Rancher UI with the bootstrap password.
-2.  Navigate to `☰ > Extensions`.
-3.  Click **Add Rancher Repositories**.
-4.  Navigate away from the `☰ > Extensions` page in order to force a refresh.
-
-### 2. Install the AI Assistant Extension
-
-Once the repository is added, the AI Assistant extension will become available for installation.
-
-1.  Return to the `☰ > Extensions` page.
-2.  Under the **Available** tab, find the **AI Assistant** extension and click **Install**.
-3.  Once the extension has finished installing, click the `Reload` button that appears at the top of the page.
-
-### 3. Verify AI Settings
-
-The deployment script automatically configures Rancher to use the LLM provider set in `ai_llm_provider`. You can verify these settings in the UI.
-
-1.  Navigate to `☰ > Global Settings` and select **rancher-ai**.
-2.  Confirm that the **LLM Provider** matches your `ai_llm_provider` value, the model field matches the corresponding `*_model` variable, and the API key/URL field for that provider is populated. These are passed directly to the `rancher-ai-agent` Helm chart at install time and don't need to be entered in the UI.
-3.  Click `Install UI Tools` to enable the UI components.
+Note that because the extension is installed directly as a `UIPlugin` rather than through the Extensions catalog's Helm-backed install flow, it won't appear in the `☰ > Extensions` page's **Installed** tab - that's cosmetic only and doesn't affect functionality. If you ever need to update the extension version, bump `ai_ui_extension_version` and re-run `terraform apply`, then delete the existing `UIPlugin`/re-run the first node's boot script (or apply the updated manifest manually) so the new version takes effect, since it's only created once on first boot.
 
 ## Cleanup
 

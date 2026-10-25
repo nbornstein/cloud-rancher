@@ -218,6 +218,12 @@ variable "ai_llm_provider" {
   }
 }
 
+variable "ai_ui_extension_version" {
+  type        = string
+  description = "Version of the rancher-ai-ui Rancher Dashboard extension (from https://github.com/rancher/ui-plugin-charts) to install alongside the AI Assistant backend. Only used when ai_llm_provider is set."
+  default     = "1.1.0"
+}
+
 variable "gemini_api_key" {
   type        = string
   description = "API key for Google Gemini. Required when ai_llm_provider = \"gemini\"."

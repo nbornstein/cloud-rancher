@@ -297,6 +297,30 @@ helm install rancher-ai-agent \
 %{ endif ~}
   oci://registry.suse.com/rancher/charts/rancher-ai-agent
 set -x
+
+# Install the SUSE AI Assistant Rancher Dashboard extension (rancher-ai-ui).
+# This replicates what clicking "Install" on the Extensions page does under
+# the hood: it creates a UIPlugin resource pointing at the extension's
+# pre-built JS bundle. We skip creating the matching ClusterRepo/App (Helm
+# release) that the UI also creates - those only affect how the extension is
+# displayed in the Extensions catalog's "Installed" tab and aren't needed for
+# the extension to actually load in the dashboard.
+kubectl create namespace cattle-ui-plugin-system --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f - <<EOF
+apiVersion: catalog.cattle.io/v1
+kind: UIPlugin
+metadata:
+  name: rancher-ai-ui
+  namespace: cattle-ui-plugin-system
+spec:
+  plugin:
+    name: rancher-ai-ui
+    version: "${ai_ui_extension_version}"
+    endpoint: https://raw.githubusercontent.com/rancher/ui-plugin-charts/main/extensions/rancher-ai-ui/${ai_ui_extension_version}
+    compressedEndpoint: https://raw.githubusercontent.com/rancher/rancher-ai-ui/gh-pages/extensions/rancher-ai-ui/${ai_ui_extension_version}.tgz
+    noAuth: false
+    noCache: false
+EOF
 %{ endif ~}
 
 # Final health check to ensure Rancher is fully available before script exits.

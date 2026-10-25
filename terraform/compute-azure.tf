@@ -96,6 +96,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
       rancher_bootstrap_password = var.rancher_bootstrap_password,
       letsencrypt_email          = var.letsencrypt_email,
       ai_llm_provider            = var.ai_llm_provider,
+      ai_ui_extension_version    = var.ai_ui_extension_version,
       gemini_api_key             = var.gemini_api_key,
       gemini_model               = var.gemini_model,
       openai_api_key             = var.openai_api_key,
