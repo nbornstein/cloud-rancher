@@ -109,6 +109,21 @@ resource "null_resource" "validate_ai_llm_provider_config" {
   }
 }
 
+# Without this, setting app_collection_username but leaving the password unset
+# would silently skip adding the repo (or add it with broken credentials)
+# instead of failing at plan time.
+resource "null_resource" "validate_app_collection_config" {
+  lifecycle {
+    precondition {
+      condition = (
+        var.app_collection_username == "" ||
+        (var.app_collection_password != null && var.app_collection_password != "")
+      )
+      error_message = "app_collection_password must be set when app_collection_username is set."
+    }
+  }
+}
+
 # --- Destroy-time De-registration ---
 
 # These null_resources act as a hook to run a de-registration script when

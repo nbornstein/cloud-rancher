@@ -306,6 +306,21 @@ variable "generic_openai_api_key" {
   sensitive   = true
 }
 
+# --- SUSE Application Collection ---
+
+variable "app_collection_username" {
+  type        = string
+  description = "Username for the SUSE Application Collection (a personal account username, or a service account name from https://apps.rancher.io). Leave as \"\" (the default) to skip adding the Application Collection as an app repository."
+  default     = ""
+}
+
+variable "app_collection_password" {
+  type        = string
+  description = "Access token (for a personal account) or secret (for a service account) for the SUSE Application Collection. Required when app_collection_username is set."
+  default     = null
+  sensitive   = true
+}
+
 # --- Downstream nodes ---
 
 variable "azure_downstream_vm_size" {

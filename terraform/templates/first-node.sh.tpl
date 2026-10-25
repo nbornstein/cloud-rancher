@@ -323,6 +323,38 @@ spec:
 EOF
 %{ endif ~}
 
+# 11. Add the SUSE Application Collection as an app repository, if credentials are set
+%{ if app_collection_username == "" ~}
+echo "app_collection_username is unset; skipping SUSE Application Collection repository setup."
+%{ else ~}
+echo "Adding the SUSE Application Collection as an app repository..."
+
+# This only authenticates browsing/pulling charts from the repo itself. Apps
+# installed from it may also need an image pull secret, but that's created
+# per-namespace at app-install time (see README), not here.
+# set +x/-x brackets this so the credentials aren't traced into cloud-init logs.
+set +x
+kubectl create secret generic application-collection \
+  --namespace cattle-system \
+  --type=kubernetes.io/basic-auth \
+  --from-literal=username="${app_collection_username}" \
+  --from-literal=password="${app_collection_password}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+set -x
+
+kubectl apply -f - <<EOF
+apiVersion: catalog.cattle.io/v1
+kind: ClusterRepo
+metadata:
+  name: application-collection
+spec:
+  url: oci://dp.apps.rancher.io/charts
+  clientSecret:
+    name: application-collection
+    namespace: cattle-system
+EOF
+%{ endif ~}
+
 # Final health check to ensure Rancher is fully available before script exits.
 # This polls the ingress endpoint to confirm the application is responsive.
 # We use --resolve to bypass DNS and test the ingress rule for the correct hostname.

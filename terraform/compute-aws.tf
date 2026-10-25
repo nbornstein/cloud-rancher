@@ -127,6 +127,8 @@ resource "aws_instance" "rancher_vm" {
       generic_openai_model       = var.generic_openai_model,
       generic_openai_url         = var.generic_openai_url,
       generic_openai_api_key     = var.generic_openai_api_key,
+      app_collection_username    = var.app_collection_username,
+      app_collection_password    = var.app_collection_password,
       use_letsencrypt            = var.use_letsencrypt,
       tls_cert_b64               = local.tls_cert_b64,
       tls_key_b64                = local.tls_key_b64,

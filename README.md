@@ -30,7 +30,8 @@ The first node runs a setup script via the cloud's VM boot-script mechanism (`us
 3.  Install `cert-manager` for automated TLS certificate management.
 4.  Deploy Rancher Prime via Helm, with TLS from either Let's Encrypt or a custom certificate pulled from AWS Secrets Manager. See [TLS / Certificate Options](#tls--certificate-options) below.
 5.  Optionally enable and configure the Rancher AI assistant ("Liz") with one of several LLM providers (Gemini, OpenAI, Bedrock, Ollama, or a generic OpenAI-compatible endpoint), including the dashboard extension that surfaces it in the UI.
-6.  Wait for all components to be fully initialized and healthy.
+6.  Optionally add the [SUSE Application Collection](https://apps.rancher.io) as an app repository.
+7.  Wait for all components to be fully initialized and healthy.
 
 In a 3-node setup, the other two management nodes run a simpler script to join this same RKE2 cluster as additional servers. The downstream nodes provisioned alongside it are entirely separate - they are not part of the management cluster or its RKE2 install in any way. See [Downstream Nodes](#downstream-nodes) below for what happens (and doesn't happen) on them.
 
@@ -144,6 +145,14 @@ You will also need the following from the SUSE Customer Center:
     # generic_openai_url      = "https://YOUR_ENDPOINT/v1"
     # generic_openai_api_key  = "YOUR_API_KEY"
     # generic_openai_model    = "YOUR_MODEL_NAME"
+
+    # Optional: SUSE Application Collection. Leave app_collection_username
+    # unset (or "") to skip adding it as an app repository. See
+    # https://apps.rancher.io for a personal access token, or have an
+    # organization admin create a service account under Settings > Service
+    # accounts for credentials scoped to automation.
+    # app_collection_username = "YOUR_APP_COLLECTION_USERNAME"
+    # app_collection_password = "YOUR_APP_COLLECTION_ACCESS_TOKEN_OR_SECRET"
 
     # Secrets for RKE2 and Rancher
     rke2_token             = "a_secure_random_string_for_rke2"
@@ -451,6 +460,14 @@ If you set `ai_llm_provider` in your `terraform.tfvars`, the deployment script i
 4.  Click `Install UI Tools` to enable the UI components.
 
 Note that because the extension is installed directly as a `UIPlugin` rather than through the Extensions catalog's Helm-backed install flow, it won't appear in the `☰ > Extensions` page's **Installed** tab - that's cosmetic only and doesn't affect functionality. If you ever need to update the extension version, bump `ai_ui_extension_version` and re-run `terraform apply`, then delete the existing `UIPlugin`/re-run the first node's boot script (or apply the updated manifest manually) so the new version takes effect, since it's only created once on first boot.
+
+### Verify the SUSE Application Collection Repository
+
+If you set `app_collection_username` in your `terraform.tfvars`, the deployment script registers `dp.apps.rancher.io` as a `ClusterRepo` named `application-collection`, authenticated with a `kubernetes.io/basic-auth` secret of the same name in the `cattle-system` namespace - no manual steps on the Repositories page are needed.
+
+1.  Log into your Rancher UI and navigate to `☰ > Apps > Repositories`. Confirm `application-collection` is listed with a state of **Active**.
+2.  Navigate to `☰ > Apps > Charts` and confirm charts from the Application Collection appear.
+3.  When installing an app from this repository, some charts also need an image pull secret to pull their container images (separate from the chart-pull credentials above). If so, create a `kubernetes.io/dockerconfigjson` secret for `dp.apps.rancher.io` in the target app's namespace using your same `app_collection_username`/`app_collection_password`, and reference it via that chart's `global.imagePullSecrets` value.
 
 ## Cleanup
 
