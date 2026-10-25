@@ -305,6 +305,12 @@ set -x
 # release) that the UI also creates - those only affect how the extension is
 # displayed in the Extensions catalog's "Installed" tab and aren't needed for
 # the extension to actually load in the dashboard.
+#
+# spec.plugin.metadata is required - without the ui-extensions-version entry,
+# the dashboard refuses to load the extension as "incompatible". These values
+# are pinned to what rancher-ai-ui 1.1.0 actually ships (captured from a real
+# Helm-installed UIPlugin); bump them if ai_ui_extension_version changes to a
+# release with different compatibility ranges.
 kubectl create namespace cattle-ui-plugin-system --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f - <<EOF
 apiVersion: catalog.cattle.io/v1
@@ -320,6 +326,11 @@ spec:
     compressedEndpoint: https://raw.githubusercontent.com/rancher/rancher-ai-ui/gh-pages/extensions/rancher-ai-ui/${ai_ui_extension_version}.tgz
     noAuth: false
     noCache: false
+    metadata:
+      catalog.cattle.io/display-name: SUSE AI Assistant
+      catalog.cattle.io/prime-only: "true"
+      catalog.cattle.io/rancher-version: ">= 2.13.0"
+      catalog.cattle.io/ui-extensions-version: ">= 3.0.0 < 4.0.0"
 EOF
 %{ endif ~}
 
