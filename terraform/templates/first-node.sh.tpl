@@ -225,6 +225,21 @@ TLS_SOURCE_OPTS="--set ingress.tls.source=secret --set ingress.tls.secretName=ra
 PRIVATE_CA_OPTS=""
 %{ endif ~}
 
+# --- Register Rancher Prime with SUSE Customer Center ---
+# Pre-create the scc-registration entrypoint secret (rather than passing
+# --set registration.regCode=<code> on the Helm install) so the code never
+# ends up in "helm get values" output. The bundled SCC Operator auto-detects
+# this secret as long as registration.enabled=true and regCode is left blank
+# on the Helm install itself.
+echo "Creating SCC registration secret for Rancher Prime..."
+kubectl create namespace cattle-scc-system --dry-run=client -o yaml | kubectl apply -f -
+# set +x/-x brackets this so the registration code isn't traced into cloud-init logs.
+set +x
+kubectl create secret generic scc-registration \
+  --namespace cattle-scc-system \
+  --from-literal=regCode="${rancher_prime_reg_code}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+set -x
 
 # --- Install/Upgrade Rancher Helm Chart ---
 echo "Installing Rancher via Helm..."
@@ -245,6 +260,8 @@ helm upgrade --install rancher rancher-prime/rancher \
   --set hostname=${rancher_hostname} \
   --set bootstrapPassword=${rancher_bootstrap_password} \
   --set ingress.ingressClassName=${ingress_class_name} \
+  --set registration.enabled=true \
+  --set registration.regCode="" \
   $TLS_SOURCE_OPTS \
   $PRIVATE_CA_OPTS
 set -x
@@ -256,6 +273,32 @@ set -x
 echo "Waiting for Rancher deployment to be ready..."
 kubectl rollout status deployment/rancher -n cattle-system --timeout=600s
 echo "Rancher deployment is ready."
+
+# Rancher core only deploys the SCC Operator (which reconciles the
+# scc-registration secret created earlier) once Rancher itself is up, so this
+# can't be checked until now. Fail loudly instead of silently leaving Rancher
+# unregistered with SUSE Customer Center.
+echo "Waiting for the SCC Operator to activate the Rancher Prime registration..."
+scc_registered=false
+scc_end_time=$((SECONDS + 300))
+while [ $SECONDS -lt $scc_end_time ]; do
+  activated=$(kubectl get registrations.scc.cattle.io scc-registration -o jsonpath='{.status.activationStatus.activated}' 2>/dev/null)
+  if [ "$activated" = "true" ]; then
+    scc_registered=true
+    break
+  fi
+  sleep 10
+done
+
+if [ "$scc_registered" != "true" ]; then
+  echo "Error: Rancher Prime registration with SUSE Customer Center did not activate within 5 minutes." >&2
+  echo "--- scc.cattle.io Registration diagnostics ---" >&2
+  kubectl get registrations.scc.cattle.io scc-registration -o yaml >&2 || true
+  echo "--- scc-operator logs ---" >&2
+  kubectl logs -n cattle-scc-system -l app=scc-operator --tail=200 >&2 || true
+  exit 1
+fi
+echo "Rancher Prime registration with SUSE Customer Center is active."
 
 # 10. Add the Rancher Extension repositories (equivalent to clicking "Add
 # Rancher Repositories" on the Extensions page), so extensions are

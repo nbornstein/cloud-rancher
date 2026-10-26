@@ -435,7 +435,15 @@ To turn one into an actual downstream cluster Rancher manages, use Rancher's clu
 
 If you provide `scc_username`/`scc_password`, downstream nodes are de-registered from SCC on `terraform destroy` the same way management nodes are - see [Automatic De-registration](#automatic-de-registration) below.
 
-## Automatic De-registration
+## Cleanup
+
+To destroy all the resources created by this project, run the following command:
+
+```sh
+terraform destroy
+```
+
+### Automatic De-registration
 
 If you provide `scc_username` and `scc_password` variables, Terraform will automatically de-register the **Rancher Manager instance and all SLES virtual machines** from the SUSE Customer Center when you run `terraform destroy`.
 
@@ -447,33 +455,4 @@ This action targets the registration associated with the Rancher Prime license, 
 **Note**: The `deregister-scc.sh` script must be executable. After creating the script, run the following command from within the `terraform` directory:
 ```sh
 chmod +x deregister-scc.sh
-```
-
-## Post-Installation Steps
-
-If you set `ai_llm_provider` in your `terraform.tfvars`, the deployment script installs the `rancher-ai-agent` backend (via Helm), the `rancher-ai-ui` Dashboard extension (via a `UIPlugin` resource, pinned to `ai_ui_extension_version`), and that extension's "UI Tools" definition (via a `ConfigMap`, also pinned to `ai_ui_extension_version`) automatically - no manual steps in the Extensions page or the AI Assistant Configuration screen's `Install UI Tools` button are needed. If you left `ai_llm_provider` unset, none of this was installed and these steps don't apply.
-
-### Verify AI Settings
-
-1.  Log into your Rancher UI with the bootstrap password and reload the page if the **SUSE AI Assistant** icon isn't visible yet.
-2.  Navigate to `☰ > Global Settings` and select **rancher-ai**.
-3.  Confirm that the **LLM Provider** matches your `ai_llm_provider` value, the model field matches the corresponding `*_model` variable, and the API key/URL field for that provider is populated. These are passed directly to the `rancher-ai-agent` Helm chart at install time and don't need to be entered in the UI.
-4.  Open the AI Assistant chat and confirm there's no "Install UI Tools"/"Refresh UI Tools" banner - its absence means the `ConfigMap` the script created matches what the installed extension version expects.
-
-Note that because the extension is installed directly as a `UIPlugin` rather than through the Extensions catalog's Helm-backed install flow, it won't appear in the `☰ > Extensions` page's **Installed** tab - that's cosmetic only and doesn't affect functionality. If you ever need to update the extension version, bump `ai_ui_extension_version` and re-run `terraform apply`, then delete the existing `UIPlugin`/re-run the first node's boot script (or apply the updated manifest manually) so the new version takes effect, since it's only created once on first boot.
-
-### Verify the SUSE Application Collection Repository
-
-If you set `app_collection_username` in your `terraform.tfvars`, the deployment script registers `dp.apps.rancher.io` as a `ClusterRepo` named `application-collection`, authenticated with a `kubernetes.io/basic-auth` secret of the same name in the `cattle-system` namespace - no manual steps on the Repositories page are needed.
-
-1.  Log into your Rancher UI and navigate to `☰ > Apps > Repositories`. Confirm `application-collection` is listed with a state of **Active**.
-2.  Navigate to `☰ > Apps > Charts` and confirm charts from the Application Collection appear.
-3.  When installing an app from this repository, some charts also need an image pull secret to pull their container images (separate from the chart-pull credentials above). If so, create a `kubernetes.io/dockerconfigjson` secret for `dp.apps.rancher.io` in the target app's namespace using your same `app_collection_username`/`app_collection_password`, and reference it via that chart's `global.imagePullSecrets` value.
-
-## Cleanup
-
-To destroy all the resources created by this project, run the following command:
-
-```sh
-terraform destroy
 ```
