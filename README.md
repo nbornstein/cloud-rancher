@@ -451,14 +451,14 @@ chmod +x deregister-scc.sh
 
 ## Post-Installation Steps
 
-If you set `ai_llm_provider` in your `terraform.tfvars`, the deployment script installs both the `rancher-ai-agent` backend (via Helm) and the `rancher-ai-ui` Dashboard extension (via a `UIPlugin` resource, pinned to `ai_ui_extension_version`) automatically - no manual steps in the Extensions page are needed. If you left `ai_llm_provider` unset, neither was installed and these steps don't apply.
+If you set `ai_llm_provider` in your `terraform.tfvars`, the deployment script installs the `rancher-ai-agent` backend (via Helm), the `rancher-ai-ui` Dashboard extension (via a `UIPlugin` resource, pinned to `ai_ui_extension_version`), and that extension's "UI Tools" definition (via a `ConfigMap`, also pinned to `ai_ui_extension_version`) automatically - no manual steps in the Extensions page or the AI Assistant Configuration screen's `Install UI Tools` button are needed. If you left `ai_llm_provider` unset, none of this was installed and these steps don't apply.
 
 ### Verify AI Settings
 
 1.  Log into your Rancher UI with the bootstrap password and reload the page if the **SUSE AI Assistant** icon isn't visible yet.
 2.  Navigate to `☰ > Global Settings` and select **rancher-ai**.
 3.  Confirm that the **LLM Provider** matches your `ai_llm_provider` value, the model field matches the corresponding `*_model` variable, and the API key/URL field for that provider is populated. These are passed directly to the `rancher-ai-agent` Helm chart at install time and don't need to be entered in the UI.
-4.  Click `Install UI Tools` to enable the UI components.
+4.  Open the AI Assistant chat and confirm there's no "Install UI Tools"/"Refresh UI Tools" banner - its absence means the `ConfigMap` the script created matches what the installed extension version expects.
 
 Note that because the extension is installed directly as a `UIPlugin` rather than through the Extensions catalog's Helm-backed install flow, it won't appear in the `☰ > Extensions` page's **Installed** tab - that's cosmetic only and doesn't affect functionality. If you ever need to update the extension version, bump `ai_ui_extension_version` and re-run `terraform apply`, then delete the existing `UIPlugin`/re-run the first node's boot script (or apply the updated manifest manually) so the new version takes effect, since it's only created once on first boot.
 

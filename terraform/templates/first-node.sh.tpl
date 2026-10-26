@@ -354,6 +354,23 @@ spec:
       catalog.cattle.io/rancher-version: ">= 2.13.0"
       catalog.cattle.io/ui-extensions-version: ">= 3.0.0 < 4.0.0"
 EOF
+
+# Install the "UI Tools" definition (the ConfigMap created by clicking
+# "Install UI Tools" on the AI Assistant Configuration screen), so chat gets
+# contextual buttons/shortcuts without that manual step. The extension
+# compares this ConfigMap's contents byte-for-byte against the tools
+# definition bundled in its own version, so it must come from the matching
+# rancher-ai-ui tag or the UI will still report it as out of date.
+curl -sfL -o /tmp/rancher-ai-ui-tools.json \
+  "https://raw.githubusercontent.com/rancher/rancher-ai-ui/rancher-ai-ui-${ai_ui_extension_version}/pkg/rancher-ai-ui/ui-tools.json"
+kubectl create configmap rancher-ai-ui \
+  --namespace cattle-ai-agent-system \
+  --from-file=config=/tmp/rancher-ai-ui-tools.json \
+  --dry-run=client -o yaml \
+  | kubectl label --local -f - app=rancher-ai-ui-tools -o yaml \
+  | kubectl annotate --local -f - description="Defines Rancher AI UI tools" ui-version="${ai_ui_extension_version}" -o yaml \
+  | kubectl apply -f -
+rm -f /tmp/rancher-ai-ui-tools.json
 %{ endif ~}
 
 # 12. Add the SUSE Application Collection as an app repository, if credentials are set
