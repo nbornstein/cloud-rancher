@@ -101,7 +101,11 @@ resource "aws_instance" "rancher_vm" {
     Name = "vm-rancher-node-${count.index + 1}"
   }
 
-  user_data_base64 = base64encode(
+  # Gzipped rather than plain base64: the rendered script (especially with
+  # custom TLS certs/CA embedded, not Let's Encrypt) exceeds AWS's 25600-byte
+  # encoded user-data limit otherwise. EC2's cloud-init auto-detects gzip and
+  # decompresses it before running, so this is transparent at boot.
+  user_data_base64 = base64gzip(
     count.index == 0 ?
     templatefile("${path.module}/templates/first-node.sh.tpl", {
       vm_hostname                = "vm-rancher-node-${count.index + 1}",
@@ -219,7 +223,7 @@ resource "aws_instance" "downstream_vm" {
     Name = "vm-downstream-node-${count.index + 1}"
   }
 
-  user_data_base64 = base64encode(templatefile("${path.module}/templates/downstream-node.sh.tpl", {
+  user_data_base64 = base64gzip(templatefile("${path.module}/templates/downstream-node.sh.tpl", {
     vm_hostname   = "vm-downstream-node-${count.index + 1}",
     sles_reg_code = var.sles_reg_code
   }))

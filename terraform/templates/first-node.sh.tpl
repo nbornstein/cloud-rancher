@@ -34,9 +34,31 @@ ingress-controller:
 EOF
 
 # 4. Install & Start RKE2
-curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="${rke2_version}" INSTALL_RKE2_TYPE="server" sh -
-systemctl enable rke2-server.service
-systemctl start rke2-server.service
+# An empty rke2_version is meant to resolve to whatever is on RKE2's "stable"
+# channel (see variables.tf), which get.rke2.io would normally resolve itself -
+# but its internal resolution issues a HEAD request to update.rke2.io and reads
+# back the final redirected URL. That endpoint doesn't reliably redirect HEAD
+# requests (and even GET-based url_effective scraping proved flaky this early
+# in boot), so the installer sometimes treats the literal string "stable" as a
+# version, which then 404s fetching it from GitHub. Resolve it ourselves from
+# update.rke2.io's actual JSON channel list instead of scraping a redirect -
+# python3 is guaranteed present since cloud-init itself depends on it.
+RKE2_VERSION="${rke2_version}"
+if [[ -z "$RKE2_VERSION" ]]; then
+  RKE2_VERSION=$(curl -sfL https://update.rke2.io/v1-release/channels | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+print(next(c["latest"] for c in data["data"] if c["id"] == "stable"))
+' 2>/dev/null)
+  if [[ -z "$RKE2_VERSION" ]]; then
+    echo "Error: Could not resolve RKE2 '\''stable'\'' channel version from update.rke2.io." >&2
+    exit 1
+  fi
+  echo "Resolved RKE2 'stable' channel to version: $RKE2_VERSION"
+fi
+curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="$RKE2_VERSION" INSTALL_RKE2_TYPE="server" sh -
+systemctl enable rke2-server.service || { echo "Error: rke2-server.service unit not found; RKE2 install likely failed." >&2; exit 1; }
+systemctl start rke2-server.service || { echo "Error: rke2-server.service failed to start." >&2; exit 1; }
 
 # 5. Environment setup for kubectl & Helm
 export PATH=$PATH:/var/lib/rancher/rke2/bin
@@ -47,22 +69,57 @@ echo "export KUBECONFIG=/etc/rancher/rke2/rke2.yaml" >> /etc/profile
 
 # Wait for RKE2 components to be ready. This is crucial to avoid race conditions.
 echo "Waiting for RKE2 API server to be ready..."
-timeout 180s bash -c 'while [[ "$(curl -k -s -o /dev/null -w ''%%{http_code}'' https://127.0.0.1:6443/ping)" != "200" ]]; do echo "Waiting for API server..."; sleep 5; done'
-
-echo "Waiting for core RKE2 components (DNS and Ingress) to be ready..."
-# RKE2's CoreDNS addon deploys as the "rke2-coredns-rke2-coredns" Deployment;
-# "kube-dns" is only the compatibility Service name, not a workload.
-kubectl wait --for=condition=Available deployment/rke2-coredns-rke2-coredns -n kube-system --timeout=300s || {
-  echo "Error: Timed out waiting for CoreDNS (deployment/rke2-coredns-rke2-coredns) to become available." >&2
+# /ping lives on RKE2's supervisor port (9345, used by joining nodes - see
+# join-node.sh.tpl), not on the Kubernetes API server's port (6443), which has
+# no /ping endpoint and was 404ing here every time regardless of actual
+# apiserver health. An unauthenticated curl to /readyz isn't right either: this
+# RKE2 version returns 401 for anonymous requests to it rather than letting it
+# through like older Kubernetes versions did. Use `kubectl get --raw=/readyz`
+# instead - it authenticates with the admin kubeconfig written above, so it
+# reflects the same thing a real client would see.
+timeout 180s bash -c 'until kubectl get --raw=/readyz &>/dev/null; do echo "Waiting for API server..."; sleep 5; done' || {
+  echo "Error: Timed out waiting for the RKE2 API server to respond on 127.0.0.1:6443." >&2
+  echo "--- rke2-server.service status ---" >&2
+  systemctl status rke2-server.service --no-pager >&2 || true
+  echo "--- rke2-server.service logs (last 100 lines) ---" >&2
+  journalctl -u rke2-server.service --no-pager | tail -100 >&2 || true
   exit 1
 }
+
+echo "Waiting for core RKE2 components (DNS and Ingress) to be ready..."
+# RKE2 deploys its addons (CoreDNS, the ingress controller) asynchronously via
+# its own embedded helm-controller, reconciling HelmChart CRs into Jobs that
+# run `helm install`. The Deployment/DaemonSet objects below don't necessarily
+# exist yet just because the apiserver is ready - `kubectl wait`/`rollout
+# status` both fail immediately with NotFound on a resource that hasn't been
+# created yet (they don't wait for creation, only for a condition on an
+# existing object), so retry the whole command until the object shows up.
+#
+# RKE2's CoreDNS addon deploys as the "rke2-coredns-rke2-coredns" Deployment;
+# "kube-dns" is only the compatibility Service name, not a workload.
+end_time=$((SECONDS + 300))
+until kubectl wait --for=condition=Available deployment/rke2-coredns-rke2-coredns -n kube-system --timeout=10s &>/dev/null; do
+  if [ $SECONDS -ge $end_time ]; then
+    echo "Error: Timed out waiting for CoreDNS (deployment/rke2-coredns-rke2-coredns) to become available." >&2
+    kubectl get deployment -n kube-system >&2 || true
+    exit 1
+  fi
+  echo "Waiting for CoreDNS deployment to exist and become available..."
+  sleep 5
+done
 # RKE2's packaged ingress controller (ingress-nginx, or traefik from v1.36 onward)
 # runs as a DaemonSet, not a Deployment, so it has no "Available" condition; wait on
 # rollout status instead.
-kubectl rollout status daemonset/${ingress_daemonset_name} -n kube-system --timeout=300s || {
-  echo "Error: Timed out waiting for the ingress controller (daemonset/${ingress_daemonset_name}) to become ready." >&2
-  exit 1
-}
+end_time=$((SECONDS + 300))
+until kubectl rollout status daemonset/${ingress_daemonset_name} -n kube-system --timeout=10s &>/dev/null; do
+  if [ $SECONDS -ge $end_time ]; then
+    echo "Error: Timed out waiting for the ingress controller (daemonset/${ingress_daemonset_name}) to become ready." >&2
+    kubectl get daemonset -n kube-system >&2 || true
+    exit 1
+  fi
+  echo "Waiting for ingress controller daemonset/${ingress_daemonset_name} to exist and become ready..."
+  sleep 5
+done
 echo "RKE2 core components are ready."
 
 # 6. Install Helm

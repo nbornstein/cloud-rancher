@@ -29,6 +29,21 @@ write-kubeconfig-mode: "0640"
 EOF
 
 # 4. Install & Start RKE2 as server (Control-Plane + Etcd + Worker)
-curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="${rke2_version}" INSTALL_RKE2_TYPE="server" sh -
-systemctl enable rke2-server.service
-systemctl start rke2-server.service
+# See first-node.sh.tpl for why an empty rke2_version is resolved here rather
+# than left to get.rke2.io's own (broken) channel resolution.
+RKE2_VERSION="${rke2_version}"
+if [[ -z "$RKE2_VERSION" ]]; then
+  RKE2_VERSION=$(curl -sfL https://update.rke2.io/v1-release/channels | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+print(next(c["latest"] for c in data["data"] if c["id"] == "stable"))
+' 2>/dev/null)
+  if [[ -z "$RKE2_VERSION" ]]; then
+    echo "Error: Could not resolve RKE2 '\''stable'\'' channel version from update.rke2.io." >&2
+    exit 1
+  fi
+  echo "Resolved RKE2 'stable' channel to version: $RKE2_VERSION"
+fi
+curl -sfL https://get.rke2.io | INSTALL_RKE2_VERSION="$RKE2_VERSION" INSTALL_RKE2_TYPE="server" sh -
+systemctl enable rke2-server.service || { echo "Error: rke2-server.service unit not found; RKE2 install likely failed." >&2; exit 1; }
+systemctl start rke2-server.service || { echo "Error: rke2-server.service failed to start." >&2; exit 1; }

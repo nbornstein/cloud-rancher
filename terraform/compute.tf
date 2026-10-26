@@ -241,8 +241,9 @@ resource "null_resource" "wait_for_rancher" {
     # This prevents Terraform from reporting success when the certificate is bad.
     command = <<-EOT
       echo "Waiting for Rancher server to become available with a valid certificate at https://${self.triggers.rancher_hostname}"
-      echo "This can take up to 20 minutes. Polling..."
-      end_time=$((SECONDS+1200)) # 20 minute timeout
+      echo "This can take up to 40 minutes: it starts polling as soon as the instance exists, well before"
+      echo "cloud-init finishes RKE2 install, cert-manager, and the Rancher Helm install/rollout. Polling..."
+      end_time=$((SECONDS+2400)) # 40 minute timeout
 
       while [ $SECONDS -lt $end_time ]; do
         # For Let's Encrypt, we perform a strict check. Curl will exit with a non-zero code
@@ -276,7 +277,7 @@ resource "null_resource" "wait_for_rancher" {
         sleep 20
       done
 
-      echo "Error: Timed out after 20 minutes waiting for Rancher to become healthy on HTTPS." >&2
+      echo "Error: Timed out after 40 minutes waiting for Rancher to become healthy on HTTPS." >&2
       echo "If using Let's Encrypt, this likely means the certificate could not be obtained." >&2
       echo "Please check the cloud-init logs on 'vm-rancher-node-1' for errors: 'sudo journalctl -u cloud-final'" >&2
       exit 1
