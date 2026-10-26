@@ -257,7 +257,29 @@ echo "Waiting for Rancher deployment to be ready..."
 kubectl rollout status deployment/rancher -n cattle-system --timeout=600s
 echo "Rancher deployment is ready."
 
-# 10. Configure Rancher AI (Liz) with the selected LLM provider, if any
+# 10. Add the Rancher Extension repositories (equivalent to clicking "Add
+# Rancher Repositories" on the Extensions page), so extensions are
+# installable/browsable from the UI without that manual step.
+echo "Adding Rancher Extension repositories..."
+kubectl apply -f - <<EOF
+apiVersion: catalog.cattle.io/v1
+kind: ClusterRepo
+metadata:
+  name: rancher-ui-plugins
+spec:
+  gitRepo: https://github.com/rancher/ui-plugin-charts
+  gitBranch: main
+---
+apiVersion: catalog.cattle.io/v1
+kind: ClusterRepo
+metadata:
+  name: partner-extensions
+spec:
+  gitRepo: https://github.com/rancher/partner-extensions
+  gitBranch: main
+EOF
+
+# 11. Configure Rancher AI (Liz) with the selected LLM provider, if any
 %{ if ai_llm_provider == "" ~}
 echo "ai_llm_provider is unset; skipping Rancher AI Assistant installation."
 %{ else ~}
@@ -334,7 +356,7 @@ spec:
 EOF
 %{ endif ~}
 
-# 11. Add the SUSE Application Collection as an app repository, if credentials are set
+# 12. Add the SUSE Application Collection as an app repository, if credentials are set
 %{ if app_collection_username == "" ~}
 echo "app_collection_username is unset; skipping SUSE Application Collection repository setup."
 %{ else ~}
