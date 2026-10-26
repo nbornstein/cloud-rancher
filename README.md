@@ -69,118 +69,10 @@ You will also need the following from the SUSE Customer Center:
 
     Either way, if you also plan to use the AWS Route53 integration for DNS or the Secrets Manager custom TLS cert option, make sure your AWS CLI is configured with credentials too (`aws configure`) - these work the same regardless of `cloud_provider`. Route53 isn't needed if you use the `sslip.io` or manual DNS options - see [DNS Options](#dns-options).
 
-2.  **Create a variables file**: This project uses a `terraform.tfvars` file to manage secrets and environment-specific settings. This file is ignored by Git. Create a file named `terraform.tfvars` in the `terraform/` directory and populate it with the required values.
+2.  **Create a variables file**: This project uses a `terraform.tfvars` file to manage secrets and environment-specific settings. This file is ignored by Git. Copy [`terraform/terraform.tfvars.example`](terraform/terraform.tfvars.example) to `terraform/terraform.tfvars` and fill in the values for your deployment - it's annotated with every variable this project supports, grouped by `cloud_provider`, DNS option, and TLS option.
 
-    ```hcl
-    # terraform/terraform.tfvars
-
-    cloud_provider            = "azure" # or "aws" or "gcp"
-    rancher_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA cluster
-    downstream_node_count     = 1 # Number of downstream nodes to create
-    letsencrypt_email         = "YOUR_EMAIL@YOUR_DOMAIN"
-    ssh_public_key            = "ssh-rsa AAAA..." # Your SSH public key content, used regardless of cloud_provider
-
-    # --- cloud_provider = "azure" ---
-    azure_location            = "westus"
-    azure_resource_group_name = "YOUR_RESOURCE_GROUP_NAME"
-    azure_rancher_vm_size     = "Standard_D4s_v5"
-    azure_downstream_vm_size  = "Standard_D4s_v5"
-    azure_admin_username      = "azureuser"
-
-    # --- cloud_provider = "aws" ---
-    # aws_region                   = "us-east-1"
-    # aws_vpc_cidr                 = "10.1.0.0/16"
-    # aws_rancher_instance_type    = "m5.xlarge"
-    # aws_downstream_instance_type = "m5.xlarge"
-    # aws_admin_username           = "ec2-user"
-    # aws_ami_id                   = "" # Leave "" to auto-discover the latest SLES 15 SP7 BYOS AMI
-    # aws_sles_ami_owner_id        = "679593333241" # SUSE's AMI-publishing account; only used by the aws_ami_id auto-discovery lookup
-
-    # --- cloud_provider = "gcp" ---
-    # gcp_project                  = "YOUR_GCP_PROJECT_ID"
-    # gcp_region                   = "us-central1"
-    # gcp_zone                     = "us-central1-a"
-    # gcp_subnet_cidr              = "10.2.0.0/24"
-    # gcp_rancher_machine_type     = "n2-standard-4"
-    # gcp_downstream_machine_type  = "n2-standard-4"
-    # gcp_admin_username           = "gcpuser"
-    # gcp_image_id                 = "" # Leave "" to auto-discover the latest SLES 15 SP7 BYOS image
-    # gcp_sles_image_family        = "sles-15-byos"
-    # gcp_sles_image_project       = "suse-byos-cloud"
-
-    # Optional: Specify component versions for a repeatable deployment.
-    # Defaults to "v1.35.9+rke2r1" (ingress-nginx) if omitted. Set this to a
-    # v1.36+ release, or "" for the latest release, to use Traefik instead -
-    # the ingress controller, cert-manager ClusterIssuer, and Rancher Helm
-    # chart are all configured automatically to match whichever one applies.
-    # rke2_version           = "v1.35.9+rke2r1"
-    # cert_manager_version   = "v1.13.1"
-    # rancher_version        = "2.9.1"
-
-    # --- Sensitive Values ---
-
-    # Optional: SUSE Customer Center credentials for automatic de-registration on destroy
-    scc_username           = "YOUR_SCC_USERNAME"
-    scc_password           = "YOUR_SCC_PASSWORD"
-
-    # SUSE and Rancher registration codes
-    sles_reg_code          = "YOUR_SLES_REG_CODE"
-    rancher_prime_reg_code = "YOUR_RANCHER_PRIME_REG_CODE"
-
-    # Optional: Rancher AI Assistant ("Liz"). Leave ai_llm_provider unset (or "")
-    # to skip installing the AI Assistant. Set it to one of: gemini, openai,
-    # bedrock, ollama, generic-openai, and only populate that provider's
-    # variable(s) below.
-    # ai_llm_provider         = "gemini"
-    # ai_ui_extension_version = "1.1.0" # Version of the rancher-ai-ui dashboard extension to install
-    # gemini_api_key          = "YOUR_GEMINI_API_KEY"
-    # gemini_model            = "gemini-3-flash-preview"
-    # openai_api_key          = "YOUR_OPENAI_API_KEY"
-    # openai_model            = "gpt-4o"
-    # bedrock_bearer_token    = "YOUR_BEDROCK_BEARER_TOKEN"
-    # bedrock_model           = "global.anthropic.claude-opus-4-5-20251101-v1:0"
-    # bedrock_region          = "us-east-1"
-    # bedrock_url             = "" # Optional: custom Bedrock VPC endpoint
-    # ollama_url              = "http://ollama:11434"
-    # ollama_model            = "gpt-oss:120b"
-    # generic_openai_url      = "https://YOUR_ENDPOINT/v1"
-    # generic_openai_api_key  = "YOUR_API_KEY"
-    # generic_openai_model    = "YOUR_MODEL_NAME"
-
-    # Optional: SUSE Application Collection. Leave app_collection_username
-    # unset (or "") to skip adding it as an app repository. See
-    # https://apps.rancher.io for a personal access token, or have an
-    # organization admin create a service account under Settings > Service
-    # accounts for credentials scoped to automation.
-    # app_collection_username = "YOUR_APP_COLLECTION_USERNAME"
-    # app_collection_password = "YOUR_APP_COLLECTION_ACCESS_TOKEN_OR_SECRET"
-
-    # Secrets for RKE2 and Rancher
-    rke2_token             = "a_secure_random_string_for_rke2"
-    rancher_bootstrap_password = "a_very_strong_password_for_rancher"
-
-    # --- DNS: pick ONE of the following three options. See "DNS Options" below. ---
-
-    # Option 1: AWS Route53 (automatic DNS record creation)
-    # rancher_hostname          = "rancher.YOUR_DOMAIN"
-    # domain_name               = "YOUR_DOMAIN"
-    # aws_create_route53_record = true
-    # aws_route53_zone_id       = "YOUR_ROUTE53_ZONE_ID"
-
-    # Option 2: sslip.io (zero-config, no domain or DNS provider needed)
-    use_sslip_io = true
-
-    # Option 3: Manual DNS (you create the A record yourself)
-    # rancher_hostname = "rancher.YOUR_DOMAIN"
-
-    # --- TLS: pick ONE of the following two options. See "TLS / Certificate Options" below. ---
-
-    # Option 1: Let's Encrypt (default - no extra variables needed beyond letsencrypt_email above)
-    # use_letsencrypt = true
-
-    # Option 2: Custom certificate from AWS Secrets Manager
-    # use_letsencrypt         = false
-    # aws_tls_cert_secret_arn = "YOUR_SECRET_ARN"
+    ```sh
+    cp terraform/terraform.tfvars.example terraform/terraform.tfvars
     ```
 
 ## DNS Options
@@ -214,155 +106,21 @@ Attach only the policy/policies below matching the integrations you're actually 
 
 ### Rancher compute (`cloud_provider = "aws"`)
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllowRke2ComputeManagement",
-            "Effect": "Allow",
-            "Action": [
-                "ec2:DescribeAccountAttributes",
-                "ec2:DescribeAvailabilityZones",
-                "ec2:DescribeImages",
-                "ec2:DescribeVpcs",
-                "ec2:DescribeVpcAttribute",
-                "ec2:DescribeSubnets",
-                "ec2:DescribeSecurityGroups",
-                "ec2:DescribeRouteTables",
-                "ec2:DescribeInternetGateways",
-                "ec2:DescribeInstances",
-                "ec2:DescribeInstanceAttribute",
-                "ec2:DescribeInstanceTypes",
-                "ec2:DescribeNetworkInterfaces",
-                "ec2:DescribeNetworkInterfaceAttribute",
-                "ec2:CreateNetworkInterface",
-                "ec2:DeleteNetworkInterface",
-                "ec2:ModifyNetworkInterfaceAttribute",
-                "ec2:AttachNetworkInterface",
-                "ec2:DetachNetworkInterface",
-                "ec2:DescribeAddresses",
-                "ec2:DescribeAddressesAttribute",
-                "ec2:DescribeKeyPairs",
-                "ec2:DescribeTags",
-                "ec2:DescribeVolumes",
-                "ec2:CreateVpc",
-                "ec2:ModifyVpcAttribute",
-                "ec2:DeleteVpc",
-                "ec2:CreateSubnet",
-                "ec2:ModifySubnetAttribute",
-                "ec2:DeleteSubnet",
-                "ec2:CreateInternetGateway",
-                "ec2:AttachInternetGateway",
-                "ec2:DetachInternetGateway",
-                "ec2:DeleteInternetGateway",
-                "ec2:CreateRouteTable",
-                "ec2:CreateRoute",
-                "ec2:DeleteRoute",
-                "ec2:AssociateRouteTable",
-                "ec2:DisassociateRouteTable",
-                "ec2:DeleteRouteTable",
-                "ec2:CreateSecurityGroup",
-                "ec2:AuthorizeSecurityGroupIngress",
-                "ec2:AuthorizeSecurityGroupEgress",
-                "ec2:RevokeSecurityGroupIngress",
-                "ec2:RevokeSecurityGroupEgress",
-                "ec2:DeleteSecurityGroup",
-                "ec2:ImportKeyPair",
-                "ec2:DeleteKeyPair",
-                "ec2:RunInstances",
-                "ec2:TerminateInstances",
-                "ec2:ModifyInstanceAttribute",
-                "ec2:AllocateAddress",
-                "ec2:AssociateAddress",
-                "ec2:DisassociateAddress",
-                "ec2:ReleaseAddress",
-                "ec2:CreateTags",
-                "ec2:DeleteTags",
-                "elasticloadbalancing:DescribeLoadBalancers",
-                "elasticloadbalancing:DescribeLoadBalancerAttributes",
-                "elasticloadbalancing:CreateLoadBalancer",
-                "elasticloadbalancing:ModifyLoadBalancerAttributes",
-                "elasticloadbalancing:DeleteLoadBalancer",
-                "elasticloadbalancing:DescribeTargetGroups",
-                "elasticloadbalancing:DescribeTargetGroupAttributes",
-                "elasticloadbalancing:CreateTargetGroup",
-                "elasticloadbalancing:ModifyTargetGroupAttributes",
-                "elasticloadbalancing:DeleteTargetGroup",
-                "elasticloadbalancing:DescribeListeners",
-                "elasticloadbalancing:DescribeListenerAttributes",
-                "elasticloadbalancing:CreateListener",
-                "elasticloadbalancing:DeleteListener",
-                "elasticloadbalancing:RegisterTargets",
-                "elasticloadbalancing:DeregisterTargets",
-                "elasticloadbalancing:DescribeTargetHealth",
-                "elasticloadbalancing:AddTags",
-                "elasticloadbalancing:DescribeTags"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Sid": "AllowElbServiceLinkedRoleCreation",
-            "Effect": "Allow",
-            "Action": "iam:CreateServiceLinkedRole",
-            "Resource": "arn:aws:iam::*:role/aws-service-role/elasticloadbalancing.amazonaws.com/AWSServiceRoleForElasticLoadBalancing*",
-            "Condition": {
-                "StringEquals": {
-                    "iam:AWSServiceName": "elasticloadbalancing.amazonaws.com"
-                }
-            }
-        }
-    ]
-}
-```
+Policy: [`iam-policies/aws-rancher-compute.json`](iam-policies/aws-rancher-compute.json)
 
-`ec2:*` and `elasticloadbalancing:*` don't support resource-level scoping for the create actions above (same reasoning AWS's own `AmazonEC2FullAccess`/`ElasticLoadBalancingFullAccess` managed policies use), so `AllowRke2ComputeManagement` is scoped by action instead - it grants nothing outside EC2/VPC/NLB.
+`ec2:*` and `elasticloadbalancing:*` don't support resource-level scoping for the create actions in that policy (same reasoning AWS's own `AmazonEC2FullAccess`/`ElasticLoadBalancingFullAccess` managed policies use), so `AllowRke2ComputeManagement` is scoped by action instead - it grants nothing outside EC2/VPC/NLB.
 
 ### Route 53 (`aws_create_route53_record = true`)
 
-**Remember to replace `YOUR_ROUTE53_ZONE_ID` with your actual hosted zone ID.**
+Policy: [`iam-policies/aws-route53.json`](iam-policies/aws-route53.json)
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllowRoute53Management",
-            "Effect": "Allow",
-            "Action": [
-                "route53:GetHostedZone",
-                "route53:ListResourceRecordSets",
-                "route53:ChangeResourceRecordSets"
-            ],
-            "Resource": "arn:aws:route53:::hostedzone/YOUR_ROUTE53_ZONE_ID"
-        },
-        {
-            "Sid": "AllowRoute53GetChange",
-            "Effect": "Allow",
-            "Action": "route53:GetChange",
-            "Resource": "arn:aws:route53:::change/*"
-        }
-    ]
-}
-```
+**Remember to replace `YOUR_ROUTE53_ZONE_ID` with your actual hosted zone ID.**
 
 ### Secrets Manager custom TLS certificate (`use_letsencrypt = false`)
 
-**Remember to replace `YOUR_SECRET_ARN` with your actual secret ARN.**
+Policy: [`iam-policies/aws-secrets-manager-custom-tls.json`](iam-policies/aws-secrets-manager-custom-tls.json)
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllowSecretsManagerRead",
-            "Effect": "Allow",
-            "Action": "secretsmanager:GetSecretValue",
-            "Resource": "YOUR_SECRET_ARN"
-        }
-    ]
-}
-```
+**Remember to replace `YOUR_SECRET_ARN` with your actual secret ARN.**
 
 ## GCP IAM Permissions
 
