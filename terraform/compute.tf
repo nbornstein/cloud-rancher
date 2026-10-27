@@ -51,6 +51,11 @@ locals {
     var.cloud_provider == "aws" ? aws_instance.downstream_vm[*].id :
     google_compute_instance.downstream_vm[*].id
   )
+  admin_username = (
+    var.cloud_provider == "azure" ? var.azure_admin_username :
+    var.cloud_provider == "aws" ? var.aws_admin_username :
+    var.gcp_admin_username
+  )
 
   rancher_node_public_ips = (
     var.cloud_provider == "azure" ? azurerm_public_ip.rancher_node_pip[*].ip_address :

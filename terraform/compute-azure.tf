@@ -50,7 +50,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
   resource_group_name = azurerm_resource_group.rg[0].name
   location            = azurerm_resource_group.rg[0].location
   size                = var.azure_rancher_vm_size
-  admin_username      = var.admin_username
+  admin_username      = var.azure_admin_username
   availability_set_id = azurerm_availability_set.avset[0].id
 
   network_interface_ids = [
@@ -67,7 +67,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
   depends_on = [aws_route53_record.rancher_dns]
 
   admin_ssh_key {
-    username   = var.admin_username
+    username   = var.azure_admin_username
     public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 
@@ -171,7 +171,7 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   resource_group_name = azurerm_resource_group.rg[0].name
   location            = azurerm_resource_group.rg[0].location
   size                = var.azure_downstream_vm_size
-  admin_username      = var.admin_username
+  admin_username      = var.azure_admin_username
   availability_set_id = azurerm_availability_set.avset[0].id
 
   network_interface_ids = [
@@ -179,7 +179,7 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   ]
 
   admin_ssh_key {
-    username   = var.admin_username
+    username   = var.azure_admin_username
     public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 

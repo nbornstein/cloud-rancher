@@ -23,12 +23,6 @@ variable "allowed_admin_cidr_blocks" {
   default     = []
 }
 
-variable "admin_username" {
-  type        = string
-  description = "Admin username for the SLES VMs. This user is created on Azure and GCP. For AWS, the username is fixed by the AMI (typically 'ec2-user') and this variable is ignored."
-  default     = "sles-admin"
-}
-
 # --- Azure ---
 
 variable "azure_location" {
@@ -41,6 +35,12 @@ variable "azure_resource_group_name" {
   type        = string
   description = "Azure resource group name. Required when cloud_provider = \"azure\"."
   default     = null
+}
+
+variable "azure_admin_username" {
+  type        = string
+  default     = "azureuser"
+  description = "Admin username for the Azure SLES VMs"
 }
 
 # --- AWS Compute (VPC, EC2, Load Balancer) ---
@@ -60,6 +60,12 @@ variable "aws_vpc_cidr" {
   type        = string
   description = "CIDR block for the VPC created for the RKE2 cluster."
   default     = "10.1.0.0/16"
+}
+
+variable "aws_admin_username" {
+  type        = string
+  description = "SSH login username for the AWS SLES AMI."
+  default     = "ec2-user"
 }
 
 variable "aws_ami_id" {
@@ -103,6 +109,12 @@ variable "gcp_subnet_cidr" {
   type        = string
   description = "CIDR block for the subnetwork created for the RKE2 cluster."
   default     = "10.2.0.0/24"
+}
+
+variable "gcp_admin_username" {
+  type        = string
+  description = "SSH login username pushed via instance metadata for the GCP SLES image. GCP has no baked-in default user - the guest agent creates whichever username is named in the ssh-keys metadata at boot."
+  default     = "gcpuser"
 }
 
 variable "gcp_image_id" {
