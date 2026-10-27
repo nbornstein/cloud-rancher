@@ -224,8 +224,9 @@ resource "aws_instance" "downstream_vm" {
   }
 
   user_data_base64 = base64gzip(templatefile("${path.module}/templates/downstream-node.sh.tpl", {
-    vm_hostname   = "vm-downstream-node-${count.index + 1}",
-    sles_reg_code = var.sles_reg_code
+    vm_hostname          = "vm-downstream-node-${count.index + 1}",
+    sles_reg_code        = var.sles_reg_code,
+    install_suse_storage = var.install_suse_storage
   }))
 }
 
@@ -235,4 +236,30 @@ resource "aws_eip_association" "downstream_node_eip_assoc" {
   provider      = aws.compute
   instance_id   = aws_instance.downstream_vm[count.index].id
   allocation_id = aws_eip.downstream_node_eip[count.index].id
+}
+
+# A dedicated 40G data disk for SUSE Storage (Longhorn), the block-storage
+# prerequisite for SUSE AI Factory. Kept separate from the 80G root disk so
+# Longhorn gets its own device to claim, mirroring how it's deployed in
+# practice (a disk reserved for its data path, not sharing the OS disk).
+resource "aws_ebs_volume" "downstream_storage" {
+  count = var.cloud_provider == "aws" && var.install_suse_storage ? var.downstream_node_count : 0
+
+  provider          = aws.compute
+  availability_zone = aws_instance.downstream_vm[count.index].availability_zone
+  size              = 40
+  type              = "gp3"
+
+  tags = {
+    Name = "vol-downstream-storage-${count.index + 1}"
+  }
+}
+
+resource "aws_volume_attachment" "downstream_storage_attach" {
+  count = var.cloud_provider == "aws" && var.install_suse_storage ? var.downstream_node_count : 0
+
+  provider    = aws.compute
+  device_name = "/dev/sdf"
+  volume_id   = aws_ebs_volume.downstream_storage[count.index].id
+  instance_id = aws_instance.downstream_vm[count.index].id
 }
