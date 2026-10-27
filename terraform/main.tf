@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.4"
+    }
   }
 }
 
@@ -42,6 +46,23 @@ provider "aws" {
 provider "google" {
   project = var.gcp_project
   region  = var.gcp_region
+}
+
+# Only hit the IP-echo service when the caller hasn't pinned allowed_admin_cidr_blocks
+# themselves, since the lookup is an outbound call to a third party and is pointless
+# once the list is explicit (e.g. ["0.0.0.0/0"] to reopen access).
+data "http" "my_ip" {
+  count = length(var.allowed_admin_cidr_blocks) == 0 ? 1 : 0
+
+  url = "https://checkip.amazonaws.com"
+}
+
+locals {
+  # CIDR blocks allowed to reach SSH/Kube-API/HTTPS on every cloud: either the
+  # caller's explicit override, or the IP running `terraform apply`, auto-detected
+  # so the apply-time health check in null_resource.wait_for_rancher (compute.tf)
+  # always has a path in.
+  admin_cidr_blocks = length(var.allowed_admin_cidr_blocks) > 0 ? var.allowed_admin_cidr_blocks : ["${chomp(data.http.my_ip[0].response_body)}/32"]
 }
 
 # Variable "validation" blocks can't reference other variables, so cross-variable

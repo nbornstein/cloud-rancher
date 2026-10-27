@@ -83,7 +83,7 @@ resource "aws_security_group" "nsg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Restrict in production to your IP
+    cidr_blocks = local.admin_cidr_blocks
   }
 
   ingress {
@@ -91,7 +91,7 @@ resource "aws_security_group" "nsg" {
     from_port   = 6443
     to_port     = 6443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = local.admin_cidr_blocks
   }
 
   ingress {
@@ -99,7 +99,7 @@ resource "aws_security_group" "nsg" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"] # Always open: required for the Let's Encrypt HTTP-01 challenge
   }
 
   ingress {
@@ -107,7 +107,7 @@ resource "aws_security_group" "nsg" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = local.admin_cidr_blocks
   }
 
   egress {

@@ -31,7 +31,7 @@ resource "azurerm_network_security_group" "nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefix      = "*" # Restrict in production to your IP
+    source_address_prefixes    = local.admin_cidr_blocks
     destination_address_prefix = "*"
   }
 
@@ -43,7 +43,7 @@ resource "azurerm_network_security_group" "nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "6443"
-    source_address_prefix      = "*"
+    source_address_prefixes    = local.admin_cidr_blocks
     destination_address_prefix = "*"
   }
 
@@ -55,7 +55,7 @@ resource "azurerm_network_security_group" "nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "80"
-    source_address_prefix      = "*"
+    source_address_prefix      = "*" # Always open: required for the Let's Encrypt HTTP-01 challenge
     destination_address_prefix = "*"
   }
 
@@ -67,7 +67,7 @@ resource "azurerm_network_security_group" "nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "443"
-    source_address_prefix      = "*"
+    source_address_prefixes    = local.admin_cidr_blocks
     destination_address_prefix = "*"
   }
 }

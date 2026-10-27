@@ -16,18 +16,34 @@ resource "google_compute_subnetwork" "subnet" {
   region        = var.gcp_region
 }
 
-resource "google_compute_firewall" "allow_rke2" {
+resource "google_compute_firewall" "allow_rke2_admin" {
   count = var.cloud_provider == "gcp" ? 1 : 0
 
-  name    = "fw-rke2-nodes"
+  name    = "fw-rke2-nodes-admin"
   network = google_compute_network.vpc[0].id
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "6443", "80", "443"]
+    ports    = ["22", "6443", "443"]
   }
 
-  source_ranges = ["0.0.0.0/0"] # Restrict in production to your IP
+  source_ranges = local.admin_cidr_blocks
+  target_tags   = ["rke2-node"]
+}
+
+resource "google_compute_firewall" "allow_rke2_http" {
+  count = var.cloud_provider == "gcp" ? 1 : 0
+
+  name    = "fw-rke2-nodes-http"
+  network = google_compute_network.vpc[0].id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+
+  # Always open: required for the Let's Encrypt HTTP-01 challenge
+  source_ranges = ["0.0.0.0/0"]
   target_tags   = ["rke2-node"]
 }
 
