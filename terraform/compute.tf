@@ -1,3 +1,4 @@
+# Fetches the custom TLS certificate from AWS Secrets Manager when not using Let's Encrypt.
 data "aws_secretsmanager_secret_version" "custom_cert" {
   count = !var.use_letsencrypt && var.aws_tls_cert_secret_arn != "" ? 1 : 0
 

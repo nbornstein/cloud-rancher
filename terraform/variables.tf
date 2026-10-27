@@ -240,7 +240,7 @@ variable "gemini_api_key" {
 variable "gemini_model" {
   type        = string
   description = "The Google Gemini model to use for the Rancher AI Assistant."
-  default     = "gemini-3-flash-preview"
+  default     = "gemini-1.5-flash-latest"
 }
 
 variable "openai_api_key" {
@@ -259,7 +259,7 @@ variable "openai_model" {
 variable "bedrock_model" {
   type        = string
   description = "The AWS Bedrock model to use for the Rancher AI Assistant."
-  default     = "global.anthropic.claude-opus-4-5-20251101-v1:0"
+  default     = "anthropic.claude-3-opus-20240229-v1:0"
 }
 
 variable "bedrock_bearer_token" {
@@ -351,6 +351,12 @@ variable "downstream_node_count" {
   type        = number
   description = "Number of downstream RKE2/K3S SLES nodes to provision."
   default     = 1
+}
+
+variable "install_suse_storage" {
+  type        = bool
+  description = "If true, attach a dedicated 40G block storage disk to each downstream node and format/mount it at /var/lib/longhorn, ready for SUSE Storage (Longhorn) - the block-storage prerequisite for SUSE AI Factory - once the node is registered as a Rancher-managed cluster. This only prepares the disk; it does not install RKE2 or Longhorn itself, since downstream nodes have no cluster to install onto until they're registered (see README's Downstream Nodes section)."
+  default     = false
 }
 
 # --- SUSE registration & Customer Center ---

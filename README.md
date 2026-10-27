@@ -165,7 +165,7 @@ This doesn't cover Route53 or Secrets Manager - those remain AWS integrations re
     ```sh
     terraform apply
     ```
-    The script will pause for up to 20 minutes while it waits for the Rancher server to be fully installed and become healthy. Terraform polls the health endpoint of the Rancher instance and will only complete the `apply` process once it receives a successful response. This ensures that when the command finishes, your Rancher UI is ready to be accessed.
+    The script will pause for up to 40 minutes while it waits for the Rancher server to be fully installed and become healthy. Terraform polls the health endpoint of the Rancher instance and will only complete the `apply` process once it receives a successful response. This ensures that when the command finishes, your Rancher UI is ready to be accessed.
 
 ## Accessing Rancher
 
@@ -192,6 +192,10 @@ To turn one into an actual downstream cluster Rancher manages, use Rancher's clu
 3.  Run the generated registration command on the VM. It installs the chosen Kubernetes distribution and registers the node with Rancher in one step.
 
 If you provide `scc_username`/`scc_password`, downstream nodes are de-registered from SCC on `terraform destroy` the same way management nodes are - see [Automatic De-registration](#automatic-de-registration) below.
+
+### SUSE Storage (optional, for SUSE AI Factory)
+
+Setting `install_suse_storage = true` attaches a dedicated 40G disk to each downstream node and formats/mounts it at `/var/lib/longhorn`, the default data path for SUSE Storage (Longhorn) - the block-storage prerequisite for SUSE AI Factory. This only prepares the disk; it does not install RKE2 or Longhorn itself, since downstream nodes have no Kubernetes cluster until you register one (above). Once a downstream node is registered as a cluster, install SUSE Storage from the SUSE Application Collection (or the Rancher Apps & Marketplace catalog) as you would any other chart - the mounted disk will be there for it to claim.
 
 ## Cleanup
 
