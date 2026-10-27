@@ -45,13 +45,25 @@ EOF
 # python3 is guaranteed present since cloud-init itself depends on it.
 RKE2_VERSION="${rke2_version}"
 if [[ -z "$RKE2_VERSION" ]]; then
-  RKE2_VERSION=$(curl -sfL https://update.rke2.io/v1-release/channels | python3 -c '
+  echo "Resolving RKE2 'stable' channel version from update.rke2.io..."
+  # Retried because this call happens very early in boot, before the VM's
+  # network/DNS is always reliably up - a single attempt has been observed to
+  # fail here even though SUSEConnect (just above) already succeeded.
+  for attempt in $(seq 1 10); do
+    CHANNELS_JSON=$(curl -sfL https://update.rke2.io/v1-release/channels)
+    if [[ $? -eq 0 ]]; then
+      RKE2_VERSION=$(echo "$CHANNELS_JSON" | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
 print(next(c["latest"] for c in data["data"] if c["id"] == "stable"))
-' 2>/dev/null)
+')
+      [[ -n "$RKE2_VERSION" ]] && break
+    fi
+    echo "Attempt $attempt/10: failed to resolve RKE2 version from update.rke2.io; retrying in 10s..." >&2
+    sleep 10
+  done
   if [[ -z "$RKE2_VERSION" ]]; then
-    echo "Error: Could not resolve RKE2 '\''stable'\'' channel version from update.rke2.io." >&2
+    echo "Error: Could not resolve RKE2 'stable' channel version from update.rke2.io after 10 attempts." >&2
     exit 1
   fi
   echo "Resolved RKE2 'stable' channel to version: $RKE2_VERSION"
