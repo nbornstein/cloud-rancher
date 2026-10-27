@@ -19,7 +19,7 @@ variable "ssh_public_key" {
 
 variable "allowed_admin_cidr_blocks" {
   type        = list(string)
-  description = "CIDR blocks allowed to reach SSH (22), the Kube-API (6443), and the Rancher UI over HTTPS (443) on every cloud. Leave as [] (the default) to auto-detect and allow only the IP running `terraform apply`. Set to [\"0.0.0.0/0\"] to reopen access to everyone. Port 80 is always left open to the world since it's required for the Let's Encrypt HTTP-01 challenge and has no sensitive surface of its own."
+  description = "CIDR blocks allowed to reach SSH (22) and the Kube-API (6443) on every cloud. Leave as [] (the default) to auto-detect and allow only the IP running `terraform apply`. Set to [\"0.0.0.0/0\"] to reopen access to everyone. Ports 80 and 443 are always left open to the world: 80 for the Let's Encrypt HTTP-01 challenge, and 443 because Rancher's own TLS + auth protect it, plus downstream cluster agents and registration scripts need to reach it from node IPs unrelated to wherever `terraform apply` was run."
   default     = []
 }
 

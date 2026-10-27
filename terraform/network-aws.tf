@@ -107,7 +107,10 @@ resource "aws_security_group" "nsg" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = local.admin_cidr_blocks
+    # Always open, like port 80: Rancher's own TLS + auth protect this, and
+    # downstream cluster agents/registration scripts connect from node IPs
+    # that have nothing to do with wherever `terraform apply` was run.
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {

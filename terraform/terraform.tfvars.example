@@ -7,7 +7,7 @@ rancher_node_count        = 1 # Can be 1 for a standalone cluster or 3 for an HA
 downstream_node_count     = 1 # Number of downstream nodes to create
 letsencrypt_email         = "YOUR_EMAIL@YOUR_DOMAIN"
 ssh_public_key            = "ssh-rsa AAAA..." # Your SSH public key content, used regardless of cloud_provider
-# allowed_admin_cidr_blocks = ["203.0.113.4/32"] # SSH/Kube-API/HTTPS access, on every cloud. Defaults to auto-detecting the IP running `terraform apply`; set to ["0.0.0.0/0"] to reopen to everyone.
+# allowed_admin_cidr_blocks = ["203.0.113.4/32"] # SSH/Kube-API access, on every cloud. Defaults to auto-detecting the IP running `terraform apply`; set to ["0.0.0.0/0"] to reopen to everyone.
 
 # --- cloud_provider = "azure" ---
 azure_location            = "westus"

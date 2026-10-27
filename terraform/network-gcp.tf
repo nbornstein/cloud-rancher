@@ -24,7 +24,7 @@ resource "google_compute_firewall" "allow_rke2_admin" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "6443", "443"]
+    ports    = ["22", "6443"]
   }
 
   source_ranges = local.admin_cidr_blocks
@@ -39,10 +39,13 @@ resource "google_compute_firewall" "allow_rke2_http" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80"]
+    # 80 is always open for the Let's Encrypt HTTP-01 challenge; 443 is always
+    # open because Rancher's own TLS + auth protect it, and downstream
+    # cluster agents/registration scripts connect from node IPs that have
+    # nothing to do with wherever `terraform apply` was run.
+    ports = ["80", "443"]
   }
 
-  # Always open: required for the Let's Encrypt HTTP-01 challenge
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["rke2-node"]
 }
