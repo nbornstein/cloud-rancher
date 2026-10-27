@@ -19,7 +19,7 @@ locals {
   gcp_image_id = var.gcp_image_id != "" ? var.gcp_image_id : (length(data.google_compute_image.sles) > 0 ? data.google_compute_image.sles[0].self_link : "")
 
   gcp_ssh_metadata = {
-    ssh-keys = "${var.gcp_admin_username}:${var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")}"
+    ssh-keys = "${var.admin_username}:${var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")}"
   }
 }
 
@@ -166,10 +166,30 @@ resource "google_compute_instance" "downstream_vm" {
     }
   }
 
+  dynamic "attached_disk" {
+    for_each = var.install_suse_storage ? [google_compute_disk.downstream_storage[count.index].id] : []
+    content {
+      source = attached_disk.value
+    }
+  }
+
   metadata = local.gcp_ssh_metadata
 
   metadata_startup_script = templatefile("${path.module}/templates/downstream-node.sh.tpl", {
-    vm_hostname   = "vm-downstream-node-${count.index + 1}",
-    sles_reg_code = var.sles_reg_code
+    vm_hostname          = "vm-downstream-node-${count.index + 1}",
+    sles_reg_code        = var.sles_reg_code,
+    install_suse_storage = var.install_suse_storage
   })
+}
+
+# A dedicated 40G data disk for SUSE Storage (Longhorn), the block-storage
+# prerequisite for SUSE AI Factory. See compute-aws.tf's downstream_storage
+# comment for why this is a separate disk from the OS disk.
+resource "google_compute_disk" "downstream_storage" {
+  count = var.cloud_provider == "gcp" && var.install_suse_storage ? var.downstream_node_count : 0
+
+  name = "disk-downstream-storage-${count.index + 1}"
+  zone = var.gcp_zone
+  size = 40
+  type = "pd-ssd"
 }

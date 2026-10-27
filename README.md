@@ -188,7 +188,7 @@ The `downstream_node_count` variable (default `1`, set to `0` to skip) provision
 To turn one into an actual downstream cluster Rancher manages, use Rancher's cluster registration command:
 
 1.  In the Rancher UI, go to **☰ > Cluster Management > Create** and create a new "Custom" cluster (choosing the Kubernetes distribution and version you want). This generates a node registration command rather than provisioning anything itself.
-2.  SSH into the downstream VM using the `downstream_node_public_ips` output and the admin username for your `cloud_provider` (`azureuser` on Azure, `ec2-user` on AWS, `gcpuser` on GCP) - `ssh <admin_username>@<ip>`.
+2.  SSH into the downstream VM using the `downstream_node_public_ips` output. For Azure and GCP, the username is configured via the `admin_username` variable (default: `sles-admin`). For AWS, the username is fixed to `ec2-user` by the AMI. Use the appropriate username for your deployment: `ssh <admin_username>@<ip>`.
 3.  Run the generated registration command on the VM. It installs the chosen Kubernetes distribution and registers the node with Rancher in one step.
 
 If you provide `scc_username`/`scc_password`, downstream nodes are de-registered from SCC on `terraform destroy` the same way management nodes are - see [Automatic De-registration](#automatic-de-registration) below.

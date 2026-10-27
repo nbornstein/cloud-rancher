@@ -8,7 +8,7 @@ set -e
 # It requires the following environment variables to be set:
 # - SCC_USERNAME: The username for the SCC account.
 # - SCC_PASSWORD: The password for the SCC account.
-# - SYSTEM_HOSTNAME: The hostname of the system to de-register.
+# - REGISTRATION_NAME: The name of the system or application to de-register (e.g., a hostname or FQDN).
 
 if ! command -v jq &> /dev/null; then
     echo "jq could not be found. Please install jq to use SCC de-registration."
@@ -21,12 +21,12 @@ if [[ -z "$SCC_USERNAME" || -z "$SCC_PASSWORD" ]]; then
   exit 0
 fi
 
-if [[ -z "$SYSTEM_HOSTNAME" ]]; then
-  echo "SYSTEM_HOSTNAME is not set. Cannot de-register system."
+if [[ -z "$REGISTRATION_NAME" ]]; then
+  echo "REGISTRATION_NAME is not set. Cannot de-register system."
   exit 0
 fi
 
-echo "Attempting to de-register system with hostname: ${SYSTEM_HOSTNAME}"
+echo "Attempting to de-register system or application with name: ${REGISTRATION_NAME}"
 
 # 1. Authenticate with SCC and get a token
 encoded_username=$(printf %s "$SCC_USERNAME" | jq -s -R -r @uri)
@@ -45,16 +45,16 @@ fi
 
 # 2. Find the system ID by hostname
 systems_response=$(curl -s -H "Authorization: Bearer ${token}" \
-  "https://scc.suse.com/connect/v1/systems?hostname=${SYSTEM_HOSTNAME}")
+  "https://scc.suse.com/connect/v1/systems?hostname=${REGISTRATION_NAME}")
 
 system_id=$(echo "$systems_response" | jq -r '.data[0].id')
 
 if [[ -z "$system_id" || "$system_id" == "null" ]]; then
-  echo "No system found with hostname '${SYSTEM_HOSTNAME}'. It may have been de-registered already."
+  echo "No system found with name '${REGISTRATION_NAME}'. It may have been de-registered already."
   exit 0
 fi
 
-echo "Found system with ID: ${system_id} for hostname: ${SYSTEM_HOSTNAME}. De-registering..."
+echo "Found system with ID: ${system_id} for name: ${REGISTRATION_NAME}. De-registering..."
 
 # 3. De-register the system
 http_code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
@@ -68,4 +68,3 @@ else
 fi
 
 exit 0
-

@@ -50,7 +50,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
   resource_group_name = azurerm_resource_group.rg[0].name
   location            = azurerm_resource_group.rg[0].location
   size                = var.azure_rancher_vm_size
-  admin_username      = var.azure_admin_username
+  admin_username      = var.admin_username
   availability_set_id = azurerm_availability_set.avset[0].id
 
   network_interface_ids = [
@@ -67,7 +67,7 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
   depends_on = [aws_route53_record.rancher_dns]
 
   admin_ssh_key {
-    username   = var.azure_admin_username
+    username   = var.admin_username
     public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 
@@ -171,7 +171,7 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   resource_group_name = azurerm_resource_group.rg[0].name
   location            = azurerm_resource_group.rg[0].location
   size                = var.azure_downstream_vm_size
-  admin_username      = var.azure_admin_username
+  admin_username      = var.admin_username
   availability_set_id = azurerm_availability_set.avset[0].id
 
   network_interface_ids = [
@@ -179,7 +179,7 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   ]
 
   admin_ssh_key {
-    username   = var.azure_admin_username
+    username   = var.admin_username
     public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
   }
 
@@ -197,7 +197,31 @@ resource "azurerm_linux_virtual_machine" "downstream_vm" {
   }
 
   user_data = base64encode(templatefile("${path.module}/templates/downstream-node.sh.tpl", {
-    vm_hostname   = "vm-downstream-node-${count.index + 1}",
-    sles_reg_code = var.sles_reg_code
+    vm_hostname          = "vm-downstream-node-${count.index + 1}",
+    sles_reg_code        = var.sles_reg_code,
+    install_suse_storage = var.install_suse_storage
   }))
+}
+
+# A dedicated 40G data disk for SUSE Storage (Longhorn), the block-storage
+# prerequisite for SUSE AI Factory. See compute-aws.tf's downstream_storage
+# comment for why this is a separate disk from the OS disk.
+resource "azurerm_managed_disk" "downstream_storage" {
+  count = var.cloud_provider == "azure" && var.install_suse_storage ? var.downstream_node_count : 0
+
+  name                 = "disk-downstream-storage-${count.index + 1}"
+  location             = azurerm_resource_group.rg[0].location
+  resource_group_name  = azurerm_resource_group.rg[0].name
+  storage_account_type = "Premium_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = 40
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "downstream_storage_attach" {
+  count = var.cloud_provider == "azure" && var.install_suse_storage ? var.downstream_node_count : 0
+
+  managed_disk_id    = azurerm_managed_disk.downstream_storage[count.index].id
+  virtual_machine_id = azurerm_linux_virtual_machine.downstream_vm[count.index].id
+  lun                = 0
+  caching            = "ReadWrite"
 }

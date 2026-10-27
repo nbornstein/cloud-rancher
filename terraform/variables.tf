@@ -13,14 +13,20 @@ variable "cloud_provider" {
 
 variable "ssh_public_key" {
   type        = string
-  description = "SSH public key content for VM/instance access, used regardless of cloud_provider."
-  default     = null # Optional fallback to ~/.ssh/id_rsa.pub
+  description = "SSH public key content for VM/instance access, used regardless of cloud_provider. If not provided, the content of ~/.ssh/id_rsa.pub is used as a fallback."
+  default     = null
 }
 
 variable "allowed_admin_cidr_blocks" {
   type        = list(string)
   description = "CIDR blocks allowed to reach SSH (22) and the Kube-API (6443) on every cloud. Leave as [] (the default) to auto-detect and allow only the IP running `terraform apply`. Set to [\"0.0.0.0/0\"] to reopen access to everyone. Ports 80 and 443 are always left open to the world: 80 for the Let's Encrypt HTTP-01 challenge, and 443 because Rancher's own TLS + auth protect it, plus downstream cluster agents and registration scripts need to reach it from node IPs unrelated to wherever `terraform apply` was run."
   default     = []
+}
+
+variable "admin_username" {
+  type        = string
+  description = "Admin username for the SLES VMs. This user is created on Azure and GCP. For AWS, the username is fixed by the AMI (typically 'ec2-user') and this variable is ignored."
+  default     = "sles-admin"
 }
 
 # --- Azure ---
@@ -35,12 +41,6 @@ variable "azure_resource_group_name" {
   type        = string
   description = "Azure resource group name. Required when cloud_provider = \"azure\"."
   default     = null
-}
-
-variable "azure_admin_username" {
-  type        = string
-  default     = "azureuser"
-  description = "Admin username for the Azure SLES VMs"
 }
 
 # --- AWS Compute (VPC, EC2, Load Balancer) ---
@@ -60,12 +60,6 @@ variable "aws_vpc_cidr" {
   type        = string
   description = "CIDR block for the VPC created for the RKE2 cluster."
   default     = "10.1.0.0/16"
-}
-
-variable "aws_admin_username" {
-  type        = string
-  description = "SSH login username for the AWS SLES AMI."
-  default     = "ec2-user"
 }
 
 variable "aws_ami_id" {
@@ -109,12 +103,6 @@ variable "gcp_subnet_cidr" {
   type        = string
   description = "CIDR block for the subnetwork created for the RKE2 cluster."
   default     = "10.2.0.0/24"
-}
-
-variable "gcp_admin_username" {
-  type        = string
-  description = "SSH login username pushed via instance metadata for the GCP SLES image. GCP has no baked-in default user - the guest agent creates whichever username is named in the ssh-keys metadata at boot."
-  default     = "gcpuser"
 }
 
 variable "gcp_image_id" {

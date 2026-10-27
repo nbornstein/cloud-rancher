@@ -51,11 +51,6 @@ locals {
     var.cloud_provider == "aws" ? aws_instance.downstream_vm[*].id :
     google_compute_instance.downstream_vm[*].id
   )
-  admin_username = (
-    var.cloud_provider == "azure" ? var.azure_admin_username :
-    var.cloud_provider == "aws" ? var.aws_admin_username :
-    var.gcp_admin_username
-  )
 
   rancher_node_public_ips = (
     var.cloud_provider == "azure" ? azurerm_public_ip.rancher_node_pip[*].ip_address :
@@ -143,10 +138,10 @@ resource "null_resource" "scc_deregister_rancher_manager" {
   triggers = {
     # We are targeting the Rancher Manager registration, which is identified
     # in SCC by the FQDN of the Rancher instance.
-    scc_system_hostname = local.rancher_hostname
-    scc_username        = var.scc_username
-    scc_password        = var.scc_password
-    script_path         = "${path.module}/deregister-scc.sh"
+    scc_registration_name = local.rancher_hostname
+    scc_username          = var.scc_username
+    scc_password          = var.scc_password
+    script_path           = "${path.module}/deregister-scc.sh"
   }
 
   provisioner "local-exec" {
@@ -154,9 +149,9 @@ resource "null_resource" "scc_deregister_rancher_manager" {
     command = self.triggers.script_path
 
     environment = {
-      SCC_USERNAME    = self.triggers.scc_username
-      SCC_PASSWORD    = self.triggers.scc_password
-      SYSTEM_HOSTNAME = self.triggers.scc_system_hostname
+      SCC_USERNAME      = self.triggers.scc_username
+      SCC_PASSWORD      = self.triggers.scc_password
+      REGISTRATION_NAME = self.triggers.scc_registration_name
     }
   }
 }
@@ -168,10 +163,10 @@ resource "null_resource" "scc_deregister_rancher_nodes" {
   triggers = {
     # The hostname used for registration is the VM's OS hostname, which the boot
     # script sets to match this naming convention via hostnamectl on every cloud.
-    scc_system_hostname = "vm-rancher-node-${count.index + 1}"
-    scc_username        = var.scc_username
-    scc_password        = var.scc_password
-    script_path         = "${path.module}/deregister-scc.sh"
+    scc_registration_name = "vm-rancher-node-${count.index + 1}"
+    scc_username          = var.scc_username
+    scc_password          = var.scc_password
+    script_path           = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
     vm_id = local.rancher_vm_ids[count.index]
   }
@@ -181,9 +176,9 @@ resource "null_resource" "scc_deregister_rancher_nodes" {
     command = self.triggers.script_path
 
     environment = {
-      SCC_USERNAME    = self.triggers.scc_username
-      SCC_PASSWORD    = self.triggers.scc_password
-      SYSTEM_HOSTNAME = self.triggers.scc_system_hostname
+      SCC_USERNAME      = self.triggers.scc_username
+      SCC_PASSWORD      = self.triggers.scc_password
+      REGISTRATION_NAME = self.triggers.scc_registration_name
     }
   }
 }
@@ -195,10 +190,10 @@ resource "null_resource" "scc_deregister_downstream_nodes" {
   triggers = {
     # The hostname used for registration is the VM's OS hostname, which the boot
     # script sets to match this naming convention via hostnamectl on every cloud.
-    scc_system_hostname = "vm-downstream-node-${count.index + 1}"
-    scc_username        = var.scc_username
-    scc_password        = var.scc_password
-    script_path         = "${path.module}/deregister-scc.sh"
+    scc_registration_name = "vm-downstream-node-${count.index + 1}"
+    scc_username          = var.scc_username
+    scc_password          = var.scc_password
+    script_path           = "${path.module}/deregister-scc.sh"
     # Explicit dependency on the VM resource.
     vm_id = local.downstream_vm_ids[count.index]
   }
@@ -208,9 +203,9 @@ resource "null_resource" "scc_deregister_downstream_nodes" {
     command = self.triggers.script_path
 
     environment = {
-      SCC_USERNAME    = self.triggers.scc_username
-      SCC_PASSWORD    = self.triggers.scc_password
-      SYSTEM_HOSTNAME = self.triggers.scc_system_hostname
+      SCC_USERNAME      = self.triggers.scc_username
+      SCC_PASSWORD      = self.triggers.scc_password
+      REGISTRATION_NAME = self.triggers.scc_registration_name
     }
   }
 }
