@@ -8,3 +8,7 @@ terraform/.terraform.tfstate.lock.info
 terraform.tfstate
 terraform/rke2-compute-policy.json
 .claude/
+
+# Editor swap files
+*.swp
+*.swo
