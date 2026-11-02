@@ -74,6 +74,23 @@ resource "azurerm_network_security_group" "nsg" {
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
+
+  # RKE2 inter-node traffic (supervisor API, kubelet, CNI) - needed for any
+  # multi-node RKE2 cluster to actually join (rancher_node_count = 3 HA, or
+  # the SUSE AI Factory cluster's server+agents). Scoped to the VNet's own
+  # address space rather than local.admin_cidr_blocks, since this is
+  # node-to-node traffic, not admin access.
+  security_rule {
+    name                       = "Allow-RKE2-Internal"
+    priority                   = 140
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "*"
+    source_address_prefix      = azurerm_virtual_network.vnet[0].address_space[0]
+    destination_address_prefix = "*"
+  }
 }
 
 resource "azurerm_subnet_network_security_group_association" "nsg_assoc" {
