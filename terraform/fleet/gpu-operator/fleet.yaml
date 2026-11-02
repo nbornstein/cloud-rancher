@@ -1,0 +1,12 @@
+defaultNamespace: gpu-operator
+
+helm:
+  chart: oci://nvcr.io/nvidia/cloud-native-charts/gpu-operator
+  version: "v26.7.2"
+  releaseName: gpu-operator
+
+targetCustomizations:
+  - name: ai-factory-clusters
+    clusterSelector:
+      matchLabels:
+        ai-factory: "true"
