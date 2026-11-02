@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/http"
       version = "~> 3.4"
     }
+    rancher2 = {
+      source  = "rancher/rancher2"
+      version = "~> 5.1"
+    }
   }
 }
 
@@ -46,6 +50,44 @@ provider "aws" {
 provider "google" {
   project = var.gcp_project
   region  = var.gcp_region
+}
+
+# Used only when install_ai_factory = true, to auto-register the SUSE AI
+# Factory downstream cluster with this Rancher management cluster (see
+# rancher.tf). This is a two-phase setup: the "bootstrap" provider below logs
+# in with rancher_bootstrap_password (the same password the Rancher Helm
+# install on the management cluster was configured with) just long enough to
+# mint a real admin API token via rancher2_bootstrap, which the "admin"
+# provider then uses for everything else. Both point at the same Rancher
+# instance; api_url is built from local.rancher_hostname (dns.tf) rather than
+# reading outputs.tf's "rancher_url" output, since outputs aren't addressable
+# from provider blocks within the same module.
+provider "rancher2" {
+  alias     = "bootstrap"
+  api_url   = "https://${local.rancher_hostname}"
+  bootstrap = true
+  insecure  = !var.use_letsencrypt
+}
+
+resource "rancher2_bootstrap" "admin" {
+  count    = var.install_ai_factory ? 1 : 0
+  provider = rancher2.bootstrap
+
+  password  = var.rancher_bootstrap_password
+  telemetry = true
+
+  # wait_for_rancher (compute.tf) already polls /healthz, which only goes
+  # green once the Rancher Helm install - and therefore the admin user this
+  # resource logs in as - is live. Without this, the bootstrap login could
+  # race the management cluster's own first-node.sh.tpl boot script.
+  depends_on = [null_resource.wait_for_rancher]
+}
+
+provider "rancher2" {
+  alias     = "admin"
+  api_url   = "https://${local.rancher_hostname}"
+  token_key = length(rancher2_bootstrap.admin) > 0 ? rancher2_bootstrap.admin[0].token : ""
+  insecure  = !var.use_letsencrypt
 }
 
 # Only hit the IP-echo service when the caller hasn't pinned allowed_admin_cidr_blocks

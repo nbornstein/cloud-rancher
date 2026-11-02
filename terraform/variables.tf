@@ -359,6 +359,83 @@ variable "install_suse_storage" {
   default     = false
 }
 
+# --- SUSE AI Factory ---
+#
+# A separate, self-contained downstream RKE2 cluster (its own VMs, its own
+# RKE2 token) that is fully auto-provisioned, auto-registered with this
+# Rancher management cluster via the rancher2 provider, and has SUSE Storage,
+# the NVIDIA GPU Operator, and SUSE AI Factory (aif-operator) installed onto
+# it via Fleet. Distinct from install_suse_storage/downstream_node_count
+# above, which only prepare a disk on plain downstream nodes for later manual
+# registration.
+
+variable "install_ai_factory" {
+  type        = bool
+  description = "If true, provision a separate GPU-enabled downstream RKE2 cluster, auto-register it with this Rancher management cluster, and install SUSE Storage, the NVIDIA GPU Operator, and SUSE AI Factory onto it via Fleet."
+  default     = false
+}
+
+variable "ai_factory_node_count" {
+  type        = number
+  description = "Number of nodes in the dedicated SUSE AI Factory downstream cluster. SUSE's documented minimum is 3 nodes (32GB RAM / 8 CPU cores / 200GB storage each). Only used when install_ai_factory = true."
+  default     = 3
+}
+
+variable "downstream_rke2_token" {
+  type        = string
+  description = "Shared secret token used by the SUSE AI Factory cluster's own nodes to join each other. Deliberately separate from rke2_token (the management cluster's token) since these are two independent clusters. Required when install_ai_factory = true."
+  default     = null
+  sensitive   = true
+}
+
+variable "downstream_rke2_version" {
+  type        = string
+  description = "The version of RKE2 to install on the SUSE AI Factory cluster. Leave \"\" (the default) to fall back to rke2_version."
+  default     = ""
+}
+
+variable "aws_downstream_gpu_instance_type" {
+  type        = string
+  default     = "g4dn.xlarge"
+  description = "EC2 instance type for SUSE AI Factory cluster nodes (single NVIDIA T4 GPU). Only used when install_ai_factory = true and cloud_provider = \"aws\"."
+}
+
+variable "azure_downstream_gpu_vm_size" {
+  type        = string
+  default     = "Standard_NC4as_T4_v3"
+  description = "Azure VM size for SUSE AI Factory cluster nodes (single NVIDIA T4 GPU). Only used when install_ai_factory = true and cloud_provider = \"azure\"."
+}
+
+variable "gcp_downstream_gpu_machine_type" {
+  type        = string
+  default     = "n1-standard-8"
+  description = "GCE machine type for SUSE AI Factory cluster nodes. Only used when install_ai_factory = true and cloud_provider = \"gcp\". Pair with gcp_downstream_gpu_accelerator_type for an N1 type, or use an A2/G2 type (which already includes GPUs) and set gcp_downstream_gpu_accelerator_type to \"\"."
+}
+
+variable "gcp_downstream_gpu_accelerator_type" {
+  type        = string
+  default     = "nvidia-tesla-t4"
+  description = "GPU accelerator type attached to SUSE AI Factory cluster nodes on GCP via guest_accelerator. Set to \"\" if gcp_downstream_gpu_machine_type is an A2/G2 family type that already includes GPUs."
+}
+
+variable "gcp_downstream_gpu_accelerator_count" {
+  type        = number
+  default     = 1
+  description = "Number of GPUs of gcp_downstream_gpu_accelerator_type to attach per SUSE AI Factory cluster node. Ignored if gcp_downstream_gpu_accelerator_type is \"\"."
+}
+
+variable "ai_factory_fleet_repo_url" {
+  type        = string
+  description = "Git URL (https:// or git@) of the repo containing this project's fleet/ directory, which Fleet's GitRepo custom resource polls to install SUSE Storage, the GPU Operator, and SUSE AI Factory onto the registered cluster. Typically this project's own repo, once pushed somewhere the Rancher management cluster can reach. Required when install_ai_factory = true."
+  default     = null
+}
+
+variable "ai_factory_fleet_repo_branch" {
+  type        = string
+  description = "Git branch of ai_factory_fleet_repo_url that Fleet's GitRepo custom resource tracks."
+  default     = "main"
+}
+
 # --- SUSE registration & Customer Center ---
 
 variable "sles_reg_code" {

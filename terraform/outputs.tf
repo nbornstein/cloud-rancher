@@ -27,3 +27,18 @@ output "kubeconfig_fetch_command" {
   description = "Command to retrieve the kubeconfig from the first Rancher node (rewrite the server address to the load balancer IP before using it remotely)"
   value       = "ssh ${local.admin_username}@${local.rancher_node_public_ips[0]} sudo cat /etc/rancher/rke2/rke2.yaml"
 }
+
+output "ai_factory_node_public_ips" {
+  description = "Public IP addresses of the SUSE AI Factory cluster nodes, in node order (node 1 is the RKE2 server, the rest are agents)"
+  value       = var.install_ai_factory ? local.ai_factory_node_public_ips : []
+}
+
+output "ai_factory_cluster_id" {
+  description = "Rancher cluster ID the SUSE AI Factory cluster was registered under"
+  value       = var.install_ai_factory ? rancher2_cluster.ai_factory[0].id : null
+}
+
+output "ai_factory_kubeconfig_fetch_command" {
+  description = "Command to retrieve the kubeconfig from the SUSE AI Factory cluster's first node"
+  value       = var.install_ai_factory ? "ssh ${local.admin_username}@${local.ai_factory_node_public_ips[0]} sudo cat /etc/rancher/rke2/rke2.yaml" : null
+}

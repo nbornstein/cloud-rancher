@@ -51,6 +51,11 @@ locals {
     var.cloud_provider == "aws" ? aws_instance.downstream_vm[*].id :
     google_compute_instance.downstream_vm[*].id
   )
+  ai_factory_vm_ids = (
+    var.cloud_provider == "azure" ? azurerm_linux_virtual_machine.ai_factory_vm[*].id :
+    var.cloud_provider == "aws" ? aws_instance.ai_factory_vm[*].id :
+    google_compute_instance.ai_factory_vm[*].id
+  )
   admin_username = (
     var.cloud_provider == "azure" ? var.azure_admin_username :
     var.cloud_provider == "aws" ? var.aws_admin_username :
@@ -66,6 +71,11 @@ locals {
     var.cloud_provider == "azure" ? azurerm_public_ip.downstream_node_pip[*].ip_address :
     var.cloud_provider == "aws" ? aws_eip.downstream_node_eip[*].public_ip :
     google_compute_address.downstream_node_external_ip[*].address
+  )
+  ai_factory_node_public_ips = (
+    var.cloud_provider == "azure" ? azurerm_public_ip.ai_factory_node_pip[*].ip_address :
+    var.cloud_provider == "aws" ? aws_eip.ai_factory_node_eip[*].public_ip :
+    google_compute_address.ai_factory_node_external_ip[*].address
   )
 }
 
@@ -121,6 +131,29 @@ resource "null_resource" "validate_app_collection_config" {
         (var.app_collection_password != null && var.app_collection_password != "")
       )
       error_message = "app_collection_password must be set when app_collection_username is set."
+    }
+  }
+}
+
+# Without this, install_ai_factory = true with a missing token/repo URL would
+# silently flow through as an empty string into the RKE2 config/GitRepo CR and
+# fail much later (an unjoinable cluster, or a GitRepo stuck in an error
+# state) instead of failing at plan time. The node-count check exists because
+# SUSE's documented minimum for AI Factory is 3 nodes (32GB RAM / 8 CPU cores
+# / 200GB storage each) - undersizing it isn't something Terraform can detect
+# after the fact, so it's enforced up front instead.
+resource "null_resource" "validate_ai_factory_config" {
+  lifecycle {
+    precondition {
+      condition = (
+        !var.install_ai_factory ||
+        (
+          var.downstream_rke2_token != null && var.downstream_rke2_token != "" &&
+          var.ai_factory_fleet_repo_url != null && var.ai_factory_fleet_repo_url != "" &&
+          var.ai_factory_node_count >= 3
+        )
+      )
+      error_message = "install_ai_factory = true requires downstream_rke2_token and ai_factory_fleet_repo_url to be set, and ai_factory_node_count >= 3 (SUSE's documented minimum)."
     }
   }
 }

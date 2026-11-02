@@ -87,41 +87,44 @@ resource "azurerm_linux_virtual_machine" "rancher_vm" {
   user_data = base64encode(
     count.index == 0 ?
     templatefile("${path.module}/templates/first-node.sh.tpl", {
-      vm_hostname                = "vm-rancher-node-${count.index + 1}",
-      sles_reg_code              = var.sles_reg_code,
-      rancher_prime_reg_code     = var.rancher_prime_reg_code,
-      rke2_token                 = var.rke2_token,
-      lb_ip                      = local.lb_public_ip,
-      rancher_hostname           = local.rancher_hostname,
-      rancher_bootstrap_password = var.rancher_bootstrap_password,
-      letsencrypt_email          = var.letsencrypt_email,
-      ai_llm_provider            = var.ai_llm_provider,
-      ai_ui_extension_version    = var.ai_ui_extension_version,
-      gemini_api_key             = var.gemini_api_key,
-      gemini_model               = var.gemini_model,
-      openai_api_key             = var.openai_api_key,
-      openai_model               = var.openai_model,
-      bedrock_model              = var.bedrock_model,
-      bedrock_bearer_token       = var.bedrock_bearer_token,
-      bedrock_region             = var.bedrock_region,
-      bedrock_url                = var.bedrock_url,
-      ollama_model               = var.ollama_model,
-      ollama_url                 = var.ollama_url,
-      generic_openai_model       = var.generic_openai_model,
-      generic_openai_url         = var.generic_openai_url,
-      generic_openai_api_key     = var.generic_openai_api_key,
-      app_collection_username    = var.app_collection_username,
-      app_collection_password    = var.app_collection_password,
-      use_letsencrypt            = var.use_letsencrypt,
-      tls_cert_b64               = local.tls_cert_b64,
-      tls_key_b64                = local.tls_key_b64,
-      ca_cert_b64                = local.ca_cert_b64,
-      rke2_version               = var.rke2_version,
-      rke2_ingress_controller    = local.rke2_ingress_controller,
-      ingress_daemonset_name     = local.ingress_daemonset_name,
-      ingress_class_name         = local.ingress_class_name,
-      cert_manager_version       = var.cert_manager_version,
-      rancher_version            = var.rancher_version
+      vm_hostname                  = "vm-rancher-node-${count.index + 1}",
+      sles_reg_code                = var.sles_reg_code,
+      rancher_prime_reg_code       = var.rancher_prime_reg_code,
+      rke2_token                   = var.rke2_token,
+      lb_ip                        = local.lb_public_ip,
+      rancher_hostname             = local.rancher_hostname,
+      rancher_bootstrap_password   = var.rancher_bootstrap_password,
+      letsencrypt_email            = var.letsencrypt_email,
+      ai_llm_provider              = var.ai_llm_provider,
+      ai_ui_extension_version      = var.ai_ui_extension_version,
+      gemini_api_key               = var.gemini_api_key,
+      gemini_model                 = var.gemini_model,
+      openai_api_key               = var.openai_api_key,
+      openai_model                 = var.openai_model,
+      bedrock_model                = var.bedrock_model,
+      bedrock_bearer_token         = var.bedrock_bearer_token,
+      bedrock_region               = var.bedrock_region,
+      bedrock_url                  = var.bedrock_url,
+      ollama_model                 = var.ollama_model,
+      ollama_url                   = var.ollama_url,
+      generic_openai_model         = var.generic_openai_model,
+      generic_openai_url           = var.generic_openai_url,
+      generic_openai_api_key       = var.generic_openai_api_key,
+      app_collection_username      = var.app_collection_username,
+      app_collection_password      = var.app_collection_password,
+      use_letsencrypt              = var.use_letsencrypt,
+      tls_cert_b64                 = local.tls_cert_b64,
+      tls_key_b64                  = local.tls_key_b64,
+      ca_cert_b64                  = local.ca_cert_b64,
+      rke2_version                 = var.rke2_version,
+      rke2_ingress_controller      = local.rke2_ingress_controller,
+      ingress_daemonset_name       = local.ingress_daemonset_name,
+      ingress_class_name           = local.ingress_class_name,
+      cert_manager_version         = var.cert_manager_version,
+      rancher_version              = var.rancher_version,
+      install_ai_factory           = var.install_ai_factory,
+      ai_factory_fleet_repo_url    = var.ai_factory_fleet_repo_url,
+      ai_factory_fleet_repo_branch = var.ai_factory_fleet_repo_branch
     }) :
     templatefile("${path.module}/templates/join-node.sh.tpl", {
       vm_hostname      = "vm-rancher-node-${count.index + 1}",
@@ -222,6 +225,112 @@ resource "azurerm_virtual_machine_data_disk_attachment" "downstream_storage_atta
 
   managed_disk_id    = azurerm_managed_disk.downstream_storage[count.index].id
   virtual_machine_id = azurerm_linux_virtual_machine.downstream_vm[count.index].id
+  lun                = 0
+  caching            = "ReadWrite"
+}
+
+# --- SUSE AI Factory Cluster Nodes ---
+#
+# A separate, GPU-enabled downstream RKE2 cluster from the plain downstream
+# nodes above - see compute-aws.tf's matching comment.
+
+resource "azurerm_public_ip" "ai_factory_node_pip" {
+  count = var.cloud_provider == "azure" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name                = "pip-ai-factory-node-${count.index + 1}"
+  location            = azurerm_resource_group.rg[0].location
+  resource_group_name = azurerm_resource_group.rg[0].name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+resource "azurerm_network_interface" "ai_factory_nic" {
+  count = var.cloud_provider == "azure" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name                = "nic-ai-factory-node-${count.index + 1}"
+  location            = azurerm_resource_group.rg[0].location
+  resource_group_name = azurerm_resource_group.rg[0].name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.subnet[0].id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.ai_factory_node_pip[count.index].id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "ai_factory_vm" {
+  count = var.cloud_provider == "azure" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name                = "vm-ai-factory-node-${count.index + 1}"
+  resource_group_name = azurerm_resource_group.rg[0].name
+  location            = azurerm_resource_group.rg[0].location
+  size                = var.azure_downstream_gpu_vm_size
+  admin_username      = var.azure_admin_username
+  availability_set_id = azurerm_availability_set.avset[0].id
+
+  network_interface_ids = [
+    azurerm_network_interface.ai_factory_nic[count.index].id,
+  ]
+
+  admin_ssh_key {
+    username   = var.azure_admin_username
+    public_key = var.ssh_public_key != null ? var.ssh_public_key : file("~/.ssh/id_rsa.pub")
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+    disk_size_gb         = 80
+  }
+
+  source_image_reference {
+    publisher = "SUSE"
+    offer     = "sles-15-sp7"
+    sku       = "gen2"
+    version   = "latest"
+  }
+
+  user_data = base64encode(
+    count.index == 0 ?
+    templatefile("${path.module}/templates/downstream-first-node.sh.tpl", {
+      vm_hostname               = "vm-ai-factory-node-${count.index + 1}",
+      sles_reg_code             = var.sles_reg_code,
+      downstream_rke2_token     = var.downstream_rke2_token,
+      downstream_rke2_version   = var.downstream_rke2_version != "" ? var.downstream_rke2_version : var.rke2_version,
+      install_suse_storage      = true,
+      registration_manifest_url = rancher2_cluster.ai_factory[0].cluster_registration_token[0].manifest_url,
+    }) :
+    templatefile("${path.module}/templates/downstream-join-node.sh.tpl", {
+      vm_hostname             = "vm-ai-factory-node-${count.index + 1}",
+      sles_reg_code           = var.sles_reg_code,
+      downstream_rke2_token   = var.downstream_rke2_token,
+      downstream_rke2_version = var.downstream_rke2_version != "" ? var.downstream_rke2_version : var.rke2_version,
+      first_node_ip           = azurerm_network_interface.ai_factory_nic[0].private_ip_address,
+      install_suse_storage    = true,
+    })
+  )
+}
+
+# A dedicated 40G data disk for SUSE Storage (Longhorn) on every AI Factory
+# node - always attached (not conditional on install_suse_storage), since
+# SUSE AI Factory always needs it.
+resource "azurerm_managed_disk" "ai_factory_storage" {
+  count = var.cloud_provider == "azure" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name                 = "disk-ai-factory-storage-${count.index + 1}"
+  location             = azurerm_resource_group.rg[0].location
+  resource_group_name  = azurerm_resource_group.rg[0].name
+  storage_account_type = "Premium_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = 40
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "ai_factory_storage_attach" {
+  count = var.cloud_provider == "azure" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  managed_disk_id    = azurerm_managed_disk.ai_factory_storage[count.index].id
+  virtual_machine_id = azurerm_linux_virtual_machine.ai_factory_vm[count.index].id
   lun                = 0
   caching            = "ReadWrite"
 }

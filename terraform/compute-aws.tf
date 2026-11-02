@@ -108,41 +108,44 @@ resource "aws_instance" "rancher_vm" {
   user_data_base64 = base64gzip(
     count.index == 0 ?
     templatefile("${path.module}/templates/first-node.sh.tpl", {
-      vm_hostname                = "vm-rancher-node-${count.index + 1}",
-      sles_reg_code              = var.sles_reg_code,
-      rancher_prime_reg_code     = var.rancher_prime_reg_code,
-      rke2_token                 = var.rke2_token,
-      lb_ip                      = local.lb_public_ip,
-      rancher_hostname           = local.rancher_hostname,
-      rancher_bootstrap_password = var.rancher_bootstrap_password,
-      letsencrypt_email          = var.letsencrypt_email,
-      ai_llm_provider            = var.ai_llm_provider,
-      ai_ui_extension_version    = var.ai_ui_extension_version,
-      gemini_api_key             = var.gemini_api_key,
-      gemini_model               = var.gemini_model,
-      openai_api_key             = var.openai_api_key,
-      openai_model               = var.openai_model,
-      bedrock_model              = var.bedrock_model,
-      bedrock_bearer_token       = var.bedrock_bearer_token,
-      bedrock_region             = var.bedrock_region,
-      bedrock_url                = var.bedrock_url,
-      ollama_model               = var.ollama_model,
-      ollama_url                 = var.ollama_url,
-      generic_openai_model       = var.generic_openai_model,
-      generic_openai_url         = var.generic_openai_url,
-      generic_openai_api_key     = var.generic_openai_api_key,
-      app_collection_username    = var.app_collection_username,
-      app_collection_password    = var.app_collection_password,
-      use_letsencrypt            = var.use_letsencrypt,
-      tls_cert_b64               = local.tls_cert_b64,
-      tls_key_b64                = local.tls_key_b64,
-      ca_cert_b64                = local.ca_cert_b64,
-      rke2_version               = var.rke2_version,
-      rke2_ingress_controller    = local.rke2_ingress_controller,
-      ingress_daemonset_name     = local.ingress_daemonset_name,
-      ingress_class_name         = local.ingress_class_name,
-      cert_manager_version       = var.cert_manager_version,
-      rancher_version            = var.rancher_version
+      vm_hostname                  = "vm-rancher-node-${count.index + 1}",
+      sles_reg_code                = var.sles_reg_code,
+      rancher_prime_reg_code       = var.rancher_prime_reg_code,
+      rke2_token                   = var.rke2_token,
+      lb_ip                        = local.lb_public_ip,
+      rancher_hostname             = local.rancher_hostname,
+      rancher_bootstrap_password   = var.rancher_bootstrap_password,
+      letsencrypt_email            = var.letsencrypt_email,
+      ai_llm_provider              = var.ai_llm_provider,
+      ai_ui_extension_version      = var.ai_ui_extension_version,
+      gemini_api_key               = var.gemini_api_key,
+      gemini_model                 = var.gemini_model,
+      openai_api_key               = var.openai_api_key,
+      openai_model                 = var.openai_model,
+      bedrock_model                = var.bedrock_model,
+      bedrock_bearer_token         = var.bedrock_bearer_token,
+      bedrock_region               = var.bedrock_region,
+      bedrock_url                  = var.bedrock_url,
+      ollama_model                 = var.ollama_model,
+      ollama_url                   = var.ollama_url,
+      generic_openai_model         = var.generic_openai_model,
+      generic_openai_url           = var.generic_openai_url,
+      generic_openai_api_key       = var.generic_openai_api_key,
+      app_collection_username      = var.app_collection_username,
+      app_collection_password      = var.app_collection_password,
+      use_letsencrypt              = var.use_letsencrypt,
+      tls_cert_b64                 = local.tls_cert_b64,
+      tls_key_b64                  = local.tls_key_b64,
+      ca_cert_b64                  = local.ca_cert_b64,
+      rke2_version                 = var.rke2_version,
+      rke2_ingress_controller      = local.rke2_ingress_controller,
+      ingress_daemonset_name       = local.ingress_daemonset_name,
+      ingress_class_name           = local.ingress_class_name,
+      cert_manager_version         = var.cert_manager_version,
+      rancher_version              = var.rancher_version,
+      install_ai_factory           = var.install_ai_factory,
+      ai_factory_fleet_repo_url    = var.ai_factory_fleet_repo_url,
+      ai_factory_fleet_repo_branch = var.ai_factory_fleet_repo_branch
     }) :
     templatefile("${path.module}/templates/join-node.sh.tpl", {
       vm_hostname      = "vm-rancher-node-${count.index + 1}",
@@ -262,4 +265,113 @@ resource "aws_volume_attachment" "downstream_storage_attach" {
   device_name = "/dev/sdf"
   volume_id   = aws_ebs_volume.downstream_storage[count.index].id
   instance_id = aws_instance.downstream_vm[count.index].id
+}
+
+# --- SUSE AI Factory Cluster Nodes ---
+#
+# A separate, GPU-enabled downstream RKE2 cluster from the plain downstream
+# nodes above - its own VM/disk/network resources, auto-installing and
+# self-registering with Rancher rather than sitting idle for manual
+# registration. See rancher.tf for the Rancher-side registration.
+
+resource "aws_eip" "ai_factory_node_eip" {
+  count = var.cloud_provider == "aws" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  provider = aws.compute
+  domain   = "vpc"
+
+  tags = {
+    Name = "eip-ai-factory-node-${count.index + 1}"
+  }
+}
+
+# Same self-reference workaround as aws_network_interface.rancher_nic above:
+# join nodes need node 0's private IP from a resource other than
+# aws_instance.ai_factory_vm itself.
+resource "aws_network_interface" "ai_factory_nic" {
+  count = var.cloud_provider == "aws" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  provider        = aws.compute
+  subnet_id       = aws_subnet.subnet[0].id
+  security_groups = [aws_security_group.nsg[0].id]
+
+  tags = {
+    Name = "nic-ai-factory-node-${count.index + 1}"
+  }
+}
+
+resource "aws_instance" "ai_factory_vm" {
+  count = var.cloud_provider == "aws" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  provider      = aws.compute
+  ami           = local.aws_ami_id
+  instance_type = var.aws_downstream_gpu_instance_type
+  key_name      = aws_key_pair.ssh_key[0].key_name
+
+  network_interface {
+    network_interface_id = aws_network_interface.ai_factory_nic[count.index].id
+    device_index         = 0
+  }
+
+  root_block_device {
+    volume_size = 80
+    volume_type = "gp3"
+  }
+
+  tags = {
+    Name = "vm-ai-factory-node-${count.index + 1}"
+  }
+
+  user_data_base64 = base64gzip(
+    count.index == 0 ?
+    templatefile("${path.module}/templates/downstream-first-node.sh.tpl", {
+      vm_hostname               = "vm-ai-factory-node-${count.index + 1}",
+      sles_reg_code             = var.sles_reg_code,
+      downstream_rke2_token     = var.downstream_rke2_token,
+      downstream_rke2_version   = var.downstream_rke2_version != "" ? var.downstream_rke2_version : var.rke2_version,
+      install_suse_storage      = true,
+      registration_manifest_url = rancher2_cluster.ai_factory[0].cluster_registration_token[0].manifest_url,
+    }) :
+    templatefile("${path.module}/templates/downstream-join-node.sh.tpl", {
+      vm_hostname             = "vm-ai-factory-node-${count.index + 1}",
+      sles_reg_code           = var.sles_reg_code,
+      downstream_rke2_token   = var.downstream_rke2_token,
+      downstream_rke2_version = var.downstream_rke2_version != "" ? var.downstream_rke2_version : var.rke2_version,
+      first_node_ip           = aws_network_interface.ai_factory_nic[0].private_ip,
+      install_suse_storage    = true,
+    })
+  )
+}
+
+resource "aws_eip_association" "ai_factory_node_eip_assoc" {
+  count = var.cloud_provider == "aws" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  provider      = aws.compute
+  instance_id   = aws_instance.ai_factory_vm[count.index].id
+  allocation_id = aws_eip.ai_factory_node_eip[count.index].id
+}
+
+# A dedicated 40G data disk for SUSE Storage (Longhorn) on every AI Factory
+# node - unlike install_suse_storage on plain downstream nodes, this is
+# always attached (not conditional) since SUSE AI Factory always needs it.
+resource "aws_ebs_volume" "ai_factory_storage" {
+  count = var.cloud_provider == "aws" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  provider          = aws.compute
+  availability_zone = aws_instance.ai_factory_vm[count.index].availability_zone
+  size              = 40
+  type              = "gp3"
+
+  tags = {
+    Name = "vol-ai-factory-storage-${count.index + 1}"
+  }
+}
+
+resource "aws_volume_attachment" "ai_factory_storage_attach" {
+  count = var.cloud_provider == "aws" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  provider    = aws.compute
+  device_name = "/dev/sdf"
+  volume_id   = aws_ebs_volume.ai_factory_storage[count.index].id
+  instance_id = aws_instance.ai_factory_vm[count.index].id
 }

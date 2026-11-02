@@ -84,41 +84,44 @@ resource "google_compute_instance" "rancher_vm" {
   metadata_startup_script = (
     count.index == 0 ?
     templatefile("${path.module}/templates/first-node.sh.tpl", {
-      vm_hostname                = "vm-rancher-node-${count.index + 1}",
-      sles_reg_code              = var.sles_reg_code,
-      rancher_prime_reg_code     = var.rancher_prime_reg_code,
-      rke2_token                 = var.rke2_token,
-      lb_ip                      = local.lb_public_ip,
-      rancher_hostname           = local.rancher_hostname,
-      rancher_bootstrap_password = var.rancher_bootstrap_password,
-      letsencrypt_email          = var.letsencrypt_email,
-      ai_llm_provider            = var.ai_llm_provider,
-      ai_ui_extension_version    = var.ai_ui_extension_version,
-      gemini_api_key             = var.gemini_api_key,
-      gemini_model               = var.gemini_model,
-      openai_api_key             = var.openai_api_key,
-      openai_model               = var.openai_model,
-      bedrock_model              = var.bedrock_model,
-      bedrock_bearer_token       = var.bedrock_bearer_token,
-      bedrock_region             = var.bedrock_region,
-      bedrock_url                = var.bedrock_url,
-      ollama_model               = var.ollama_model,
-      ollama_url                 = var.ollama_url,
-      generic_openai_model       = var.generic_openai_model,
-      generic_openai_url         = var.generic_openai_url,
-      generic_openai_api_key     = var.generic_openai_api_key,
-      app_collection_username    = var.app_collection_username,
-      app_collection_password    = var.app_collection_password,
-      use_letsencrypt            = var.use_letsencrypt,
-      tls_cert_b64               = local.tls_cert_b64,
-      tls_key_b64                = local.tls_key_b64,
-      ca_cert_b64                = local.ca_cert_b64,
-      rke2_version               = var.rke2_version,
-      rke2_ingress_controller    = local.rke2_ingress_controller,
-      ingress_daemonset_name     = local.ingress_daemonset_name,
-      ingress_class_name         = local.ingress_class_name,
-      cert_manager_version       = var.cert_manager_version,
-      rancher_version            = var.rancher_version
+      vm_hostname                  = "vm-rancher-node-${count.index + 1}",
+      sles_reg_code                = var.sles_reg_code,
+      rancher_prime_reg_code       = var.rancher_prime_reg_code,
+      rke2_token                   = var.rke2_token,
+      lb_ip                        = local.lb_public_ip,
+      rancher_hostname             = local.rancher_hostname,
+      rancher_bootstrap_password   = var.rancher_bootstrap_password,
+      letsencrypt_email            = var.letsencrypt_email,
+      ai_llm_provider              = var.ai_llm_provider,
+      ai_ui_extension_version      = var.ai_ui_extension_version,
+      gemini_api_key               = var.gemini_api_key,
+      gemini_model                 = var.gemini_model,
+      openai_api_key               = var.openai_api_key,
+      openai_model                 = var.openai_model,
+      bedrock_model                = var.bedrock_model,
+      bedrock_bearer_token         = var.bedrock_bearer_token,
+      bedrock_region               = var.bedrock_region,
+      bedrock_url                  = var.bedrock_url,
+      ollama_model                 = var.ollama_model,
+      ollama_url                   = var.ollama_url,
+      generic_openai_model         = var.generic_openai_model,
+      generic_openai_url           = var.generic_openai_url,
+      generic_openai_api_key       = var.generic_openai_api_key,
+      app_collection_username      = var.app_collection_username,
+      app_collection_password      = var.app_collection_password,
+      use_letsencrypt              = var.use_letsencrypt,
+      tls_cert_b64                 = local.tls_cert_b64,
+      tls_key_b64                  = local.tls_key_b64,
+      ca_cert_b64                  = local.ca_cert_b64,
+      rke2_version                 = var.rke2_version,
+      rke2_ingress_controller      = local.rke2_ingress_controller,
+      ingress_daemonset_name       = local.ingress_daemonset_name,
+      ingress_class_name           = local.ingress_class_name,
+      cert_manager_version         = var.cert_manager_version,
+      rancher_version              = var.rancher_version,
+      install_ai_factory           = var.install_ai_factory,
+      ai_factory_fleet_repo_url    = var.ai_factory_fleet_repo_url,
+      ai_factory_fleet_repo_branch = var.ai_factory_fleet_repo_branch
     }) :
     templatefile("${path.module}/templates/join-node.sh.tpl", {
       vm_hostname      = "vm-rancher-node-${count.index + 1}",
@@ -189,6 +192,107 @@ resource "google_compute_disk" "downstream_storage" {
   count = var.cloud_provider == "gcp" && var.install_suse_storage ? var.downstream_node_count : 0
 
   name = "disk-downstream-storage-${count.index + 1}"
+  zone = var.gcp_zone
+  size = 40
+  type = "pd-ssd"
+}
+
+# --- SUSE AI Factory Cluster Nodes ---
+#
+# A separate, GPU-enabled downstream RKE2 cluster from the plain downstream
+# nodes above - see compute-aws.tf's matching comment.
+
+resource "google_compute_address" "ai_factory_node_internal_ip" {
+  count = var.cloud_provider == "gcp" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name         = "ip-int-ai-factory-node-${count.index + 1}"
+  region       = var.gcp_region
+  subnetwork   = google_compute_subnetwork.subnet[0].id
+  address_type = "INTERNAL"
+}
+
+resource "google_compute_address" "ai_factory_node_external_ip" {
+  count = var.cloud_provider == "gcp" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name         = "ip-ext-ai-factory-node-${count.index + 1}"
+  region       = var.gcp_region
+  address_type = "EXTERNAL"
+}
+
+resource "google_compute_instance" "ai_factory_vm" {
+  count = var.cloud_provider == "gcp" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name         = "vm-ai-factory-node-${count.index + 1}"
+  zone         = var.gcp_zone
+  machine_type = var.gcp_downstream_gpu_machine_type
+  tags         = ["rke2-node"]
+
+  dynamic "guest_accelerator" {
+    for_each = var.gcp_downstream_gpu_accelerator_type != "" ? [1] : []
+    content {
+      type  = var.gcp_downstream_gpu_accelerator_type
+      count = var.gcp_downstream_gpu_accelerator_count
+    }
+  }
+
+  # Required whenever a GPU is attached (explicitly via guest_accelerator
+  # above, or implicitly via an A2/G2 machine type with GPUs built in) - GCP
+  # does not support live migration for GPU-attached instances.
+  scheduling {
+    on_host_maintenance = "TERMINATE"
+  }
+
+  boot_disk {
+    initialize_params {
+      image = local.gcp_image_id
+      size  = 80
+      type  = "pd-ssd"
+    }
+  }
+
+  network_interface {
+    subnetwork = google_compute_subnetwork.subnet[0].id
+    network_ip = google_compute_address.ai_factory_node_internal_ip[count.index].address
+
+    access_config {
+      nat_ip = google_compute_address.ai_factory_node_external_ip[count.index].address
+    }
+  }
+
+  attached_disk {
+    source = google_compute_disk.ai_factory_storage[count.index].id
+  }
+
+  metadata = local.gcp_ssh_metadata
+
+  metadata_startup_script = (
+    count.index == 0 ?
+    templatefile("${path.module}/templates/downstream-first-node.sh.tpl", {
+      vm_hostname               = "vm-ai-factory-node-${count.index + 1}",
+      sles_reg_code             = var.sles_reg_code,
+      downstream_rke2_token     = var.downstream_rke2_token,
+      downstream_rke2_version   = var.downstream_rke2_version != "" ? var.downstream_rke2_version : var.rke2_version,
+      install_suse_storage      = true,
+      registration_manifest_url = rancher2_cluster.ai_factory[0].cluster_registration_token[0].manifest_url,
+    }) :
+    templatefile("${path.module}/templates/downstream-join-node.sh.tpl", {
+      vm_hostname             = "vm-ai-factory-node-${count.index + 1}",
+      sles_reg_code           = var.sles_reg_code,
+      downstream_rke2_token   = var.downstream_rke2_token,
+      downstream_rke2_version = var.downstream_rke2_version != "" ? var.downstream_rke2_version : var.rke2_version,
+      first_node_ip           = google_compute_address.ai_factory_node_internal_ip[0].address,
+      install_suse_storage    = true,
+    })
+  )
+}
+
+# A dedicated 40G data disk for SUSE Storage (Longhorn) on every AI Factory
+# node - always attached (not conditional on install_suse_storage), since
+# SUSE AI Factory always needs it.
+resource "google_compute_disk" "ai_factory_storage" {
+  count = var.cloud_provider == "gcp" && var.install_ai_factory ? var.ai_factory_node_count : 0
+
+  name = "disk-ai-factory-storage-${count.index + 1}"
   zone = var.gcp_zone
   size = 40
   type = "pd-ssd"
