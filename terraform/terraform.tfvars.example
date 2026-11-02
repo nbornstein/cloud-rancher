@@ -85,6 +85,23 @@ rancher_prime_reg_code = "YOUR_RANCHER_PRIME_REG_CODE"
 # app_collection_username = "YOUR_APP_COLLECTION_USERNAME"
 # app_collection_password = "YOUR_APP_COLLECTION_ACCESS_TOKEN_OR_SECRET"
 
+# Optional: SUSE AI Factory. Fully auto-provisions a separate GPU-enabled
+# downstream RKE2 cluster, registers it with this Rancher management cluster,
+# and installs SUSE Storage, the NVIDIA GPU Operator, and SUSE AI Factory
+# onto it via Fleet. Requires ai_factory_node_count >= 3 (SUSE's documented
+# minimum) and its own repo URL so Fleet can find this project's fleet/
+# directory.
+# install_ai_factory          = true
+# ai_factory_node_count       = 3
+# downstream_rke2_token       = "a_separate_secure_random_string_for_the_ai_factory_cluster"
+# ai_factory_fleet_repo_url    = "https://github.com/YOUR_ORG/cloud-rancher"
+# ai_factory_fleet_repo_branch = "main"
+# aws_downstream_gpu_instance_type     = "g4dn.xlarge"
+# azure_downstream_gpu_vm_size         = "Standard_NC4as_T4_v3"
+# gcp_downstream_gpu_machine_type      = "n1-standard-8"
+# gcp_downstream_gpu_accelerator_type  = "nvidia-tesla-t4"
+# gcp_downstream_gpu_accelerator_count = 1
+
 # Secrets for RKE2 and Rancher
 rke2_token             = "a_secure_random_string_for_rke2"
 rancher_bootstrap_password = "a_very_strong_password_for_rancher"

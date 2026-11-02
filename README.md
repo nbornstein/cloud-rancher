@@ -197,6 +197,22 @@ If you provide `scc_username`/`scc_password`, downstream nodes are de-registered
 
 Setting `install_suse_storage = true` attaches a dedicated 40G disk to each downstream node and formats/mounts it at `/var/lib/longhorn`, the default data path for SUSE Storage (Longhorn) - the block-storage prerequisite for SUSE AI Factory. This only prepares the disk; it does not install RKE2 or Longhorn itself, since downstream nodes have no Kubernetes cluster until you register one (above). Once a downstream node is registered as a cluster, install SUSE Storage from the SUSE Application Collection (or the Rancher Apps & Marketplace catalog) as you would any other chart - the mounted disk will be there for it to claim.
 
+### SUSE AI Factory (optional, fully automated)
+
+Setting `install_ai_factory = true` skips all of the manual steps above for a separate, dedicated cluster: it provisions its own GPU-enabled downstream RKE2 cluster (independent of `downstream_node_count`'s plain nodes), automatically registers it with this Rancher management cluster, and installs SUSE Storage, the NVIDIA GPU Operator, and SUSE AI Factory (`aif-operator`) onto it via Fleet - no manual registration command or chart installs required.
+
+Required variables when enabling it:
+
+- `downstream_rke2_token` - a separate secret token for this cluster's own nodes to join each other (deliberately independent of the management cluster's `rke2_token`).
+- `ai_factory_fleet_repo_url` (and optionally `ai_factory_fleet_repo_branch`, default `main`) - the Git URL of this project's own repo (once pushed somewhere reachable), so Fleet's `GitRepo` resource can find the `fleet/` directory and install the three bundles above.
+- `ai_factory_node_count` defaults to `3`, SUSE AI Factory's documented minimum (32GB RAM / 8 CPU cores / 200GB storage per node) - `terraform plan` fails if set lower while `install_ai_factory = true`.
+
+GPU instance sizing defaults to a single-GPU shape per cloud (`aws_downstream_gpu_instance_type` = `g4dn.xlarge`, `azure_downstream_gpu_vm_size` = `Standard_NC4as_T4_v3`, `gcp_downstream_gpu_machine_type` = `n1-standard-8` with `gcp_downstream_gpu_accelerator_type` = `nvidia-tesla-t4`) - override these for a different GPU/VRAM size, or check your cloud account's GPU quota before enabling this (NC-series on Azure and GPU-attached shapes on AWS/GCP commonly need an explicit quota increase for new accounts).
+
+Optional registry credentials: if `app_collection_username`/`app_collection_password` are set, they're automatically passed through to the `aif-operator` chart via Fleet. `aif-operator` also supports NVIDIA NGC and SUSE Registry credentials, but no variables in this project plumb those through yet - add them manually to the `ai-factory-credentials` secret in the `fleet-default` namespace on the management cluster if you need them.
+
+Use the `ai_factory_node_public_ips`, `ai_factory_cluster_id`, and `ai_factory_kubeconfig_fetch_command` outputs to inspect or connect to the cluster once it's up.
+
 ## Cleanup
 
 To destroy all the resources created by this project, run the following command:
