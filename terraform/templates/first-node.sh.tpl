@@ -544,7 +544,66 @@ spec:
 EOF
 %{ endif ~}
 
-# 14. Confirm the Rancher Prime registration with SUSE Customer Center activated.
+# 14. Set up Fleet for SUSE AI Factory, if enabled. The GitRepo CR and its
+# credentials secret live here on the management cluster (in Fleet's
+# fleet-default workspace) - this project doesn't create the downstream AI
+# Factory cluster itself. Create that cluster manually from the Rancher UI,
+# label it ai-factory=true, and Fleet's clusterSelector (see fleet/*/fleet.yaml
+# in this repo) picks it up and installs SUSE Storage, the NVIDIA GPU
+# Operator, and SUSE AI Factory onto it automatically.
+%{ if install_ai_factory ~}
+echo "Setting up Fleet for SUSE AI Factory..."
+
+%{ if app_collection_username != "" ~}
+# aif-operator's values.yaml expects registry credentials under a
+# `credentials` block (see fleet/ai-factory/fleet.yaml) - Fleet's
+# helm.valuesFrom merges the YAML content of a secret key, not individual
+# username/password keys, so build that YAML snippet here rather than reusing
+# the plain basic-auth "application-collection" secret created in step 13.
+# set +x/-x brackets this so the credentials aren't traced into cloud-init logs.
+set +x
+cat <<EOF | kubectl create secret generic ai-factory-credentials \
+  --namespace fleet-default \
+  --from-file=values.yaml=/dev/stdin \
+  --dry-run=client -o yaml | kubectl apply -f -
+credentials:
+  applicationCollection:
+    username: "${app_collection_username}"
+    password: "${app_collection_password}"
+EOF
+set -x
+%{ else ~}
+echo "app_collection_username is unset; SUSE AI Factory will install without Application Collection credentials."
+kubectl create secret generic ai-factory-credentials \
+  --namespace fleet-default \
+  --from-literal=values.yaml="credentials: {}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+%{ endif ~}
+
+kubectl apply -f - <<EOF
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: ai-factory
+  namespace: fleet-default
+spec:
+  repo: "${ai_factory_fleet_repo_url}"
+  branch: "${ai_factory_fleet_repo_branch}"
+  paths:
+    - terraform/fleet/suse-storage
+    - terraform/fleet/gpu-operator
+    - terraform/fleet/ai-factory
+  targets:
+    - name: ai-factory-clusters
+      clusterSelector:
+        matchLabels:
+          ai-factory: "true"
+EOF
+%{ else ~}
+echo "install_ai_factory is false; skipping SUSE AI Factory Fleet setup."
+%{ endif ~}
+
+# 15. Confirm the Rancher Prime registration with SUSE Customer Center activated.
 # The SCC Operator doesn't process the scc-registration secret until Rancher's
 # server-url and initial telemetry are ready, which can take 10+ minutes after
 # Rancher starts - so this runs last, with a generous timeout. The operator

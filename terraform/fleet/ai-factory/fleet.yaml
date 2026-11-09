@@ -1,0 +1,27 @@
+# aif-operator's values.yaml exposes a `credentials` block for three optional
+# registries (applicationCollection, nvidia, suseRegistry) - see
+# `helm show values oci://ghcr.io/suse/chart/aif-operator --version 2.3.1`.
+# Only applicationCollection is wired up here, via the ai-factory-credentials
+# secret created in fleet-default by first-node.sh.tpl (gated on
+# app_collection_username being set). nvidia/suseRegistry are left unset by
+# default - no existing variable in this project plumbs those credentials.
+defaultNamespace: aif-operator
+
+helm:
+  chart: oci://ghcr.io/suse/chart/aif-operator
+  version: "2.3.1"
+  releaseName: aif-operator
+  valuesFrom:
+    - secretKeyRef:
+        name: ai-factory-credentials
+        key: values.yaml
+
+dependsOn:
+  - name: suse-storage
+  - name: gpu-operator
+
+targetCustomizations:
+  - name: ai-factory-clusters
+    clusterSelector:
+      matchLabels:
+        ai-factory: "true"

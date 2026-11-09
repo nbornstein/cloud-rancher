@@ -1,0 +1,16 @@
+defaultNamespace: longhorn-system
+
+helm:
+  chart: oci://registry.suse.com/rancher/charts/longhorn
+  version: "106.2.0"
+  releaseName: longhorn
+  values:
+    persistence:
+      defaultClass: true
+      defaultDataPath: /var/lib/longhorn
+
+targetCustomizations:
+  - name: ai-factory-clusters
+    clusterSelector:
+      matchLabels:
+        ai-factory: "true"

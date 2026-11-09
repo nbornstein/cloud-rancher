@@ -92,6 +92,15 @@ rancher_prime_reg_code = "YOUR_RANCHER_PRIME_REG_CODE"
 # app_collection_username = "YOUR_APP_COLLECTION_USERNAME"
 # app_collection_password = "YOUR_APP_COLLECTION_ACCESS_TOKEN_OR_SECRET"
 
+# Optional: SUSE AI Factory. This project does NOT create the downstream
+# cluster for you - create it manually from the Rancher UI and label it
+# ai-factory=true. Setting install_ai_factory sets up a Fleet GitRepo on the
+# management cluster that then auto-installs SUSE Storage, the NVIDIA GPU
+# Operator, and SUSE AI Factory onto that labeled cluster.
+# install_ai_factory           = true
+# ai_factory_fleet_repo_url    = "https://github.com/YOUR_ORG/cloud-rancher.git" # Must contain this project's fleet/ directory
+# ai_factory_fleet_repo_branch = "main"
+
 # Secrets for RKE2 and Rancher
 rke2_token             = "a_secure_random_string_for_rke2"
 rancher_bootstrap_password = "a_very_strong_password_for_rancher"

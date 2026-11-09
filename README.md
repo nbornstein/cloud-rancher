@@ -33,7 +33,8 @@ The first node runs a setup script via the cloud's VM boot-script mechanism (`us
 6.  Optionally enable and configure the Rancher AI assistant ("Liz") with one of several LLM providers (Gemini, OpenAI, Bedrock, Ollama, or a generic OpenAI-compatible endpoint), including the dashboard extension that surfaces it in the UI.
 7.  Optionally install the k3k controller and the SUSE Virtual Clusters dashboard extension, for provisioning lightweight K3s virtual clusters from the Extensions UI.
 8.  Optionally add the [SUSE Application Collection](https://apps.rancher.io) as an app repository.
-9.  Wait for all components to be fully initialized and healthy.
+9.  Optionally set up a Fleet GitRepo that auto-installs SUSE Storage, the NVIDIA GPU Operator, and SUSE AI Factory onto a downstream cluster you label `ai-factory=true`. See [SUSE AI Factory](#suse-ai-factory-optional) below.
+10. Wait for all components to be fully initialized and healthy.
 
 In a 3-node setup, the other two management nodes run a simpler script to join this same RKE2 cluster as additional servers. The downstream nodes provisioned alongside it are entirely separate - they are not part of the management cluster or its RKE2 install in any way. See [Downstream Nodes](#downstream-nodes) below for what happens (and doesn't happen) on them.
 
@@ -197,6 +198,18 @@ If you provide `scc_username`/`scc_password`, downstream nodes are de-registered
 ### SUSE Storage (optional, for SUSE AI Factory)
 
 Setting `install_suse_storage = true` attaches a dedicated 40G disk to each downstream node and formats/mounts it at `/var/lib/longhorn`, the default data path for SUSE Storage (Longhorn) - the block-storage prerequisite for SUSE AI Factory. This only prepares the disk; it does not install RKE2 or Longhorn itself, since downstream nodes have no Kubernetes cluster until you register one (above). Once a downstream node is registered as a cluster, install SUSE Storage from the SUSE Application Collection (or the Rancher Apps & Marketplace catalog) as you would any other chart - the mounted disk will be there for it to claim.
+
+### SUSE AI Factory (optional)
+
+This project does not create or register the SUSE AI Factory downstream cluster for you - that's a deliberate choice, not a gap. Create it the same way as any other downstream cluster (above), sized per [SUSE's documented minimum](https://documentation.suse.com/cloudnative/suse-virtual-clusters/) for AI Factory (3 nodes, 32GB RAM / 8 CPU cores / 200GB storage each, with a GPU on each node).
+
+Setting `install_ai_factory = true` sets up a Fleet `GitRepo` on the management cluster (pointed at `ai_factory_fleet_repo_url`/`ai_factory_fleet_repo_branch`, typically this same repo once pushed somewhere the management cluster can reach) that watches the [`terraform/fleet`](terraform/fleet) directory. Once you label your downstream cluster `ai-factory=true` in the Rancher UI, Fleet's `clusterSelector` picks it up and installs, in order:
+
+1.  **SUSE Storage** (Longhorn) - [`terraform/fleet/suse-storage`](terraform/fleet/suse-storage)
+2.  **NVIDIA GPU Operator** - [`terraform/fleet/gpu-operator`](terraform/fleet/gpu-operator)
+3.  **SUSE AI Factory** (`aif-operator`) - [`terraform/fleet/ai-factory`](terraform/fleet/ai-factory), which `dependsOn` the two bundles above so Fleet enforces that install order
+
+If `app_collection_username`/`app_collection_password` are set, they're automatically passed through to the `aif-operator` chart via an `ai-factory-credentials` secret Fleet reads from. `aif-operator` also supports NVIDIA NGC and SUSE Registry credentials, but no variables in this project plumb those through yet - add them manually to that secret (in the `fleet-default` namespace on the management cluster) if you need them.
 
 ## Cleanup
 

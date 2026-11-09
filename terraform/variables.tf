@@ -379,6 +379,32 @@ variable "install_suse_storage" {
   default     = false
 }
 
+# --- SUSE AI Factory ---
+#
+# This project does not create or register the SUSE AI Factory downstream
+# cluster itself - create it manually from the Rancher UI, label it
+# ai-factory=true, and Fleet's clusterSelector (see fleet/*/fleet.yaml in this
+# repo) picks it up and installs SUSE Storage, the NVIDIA GPU Operator, and
+# SUSE AI Factory onto it automatically.
+
+variable "install_ai_factory" {
+  type        = bool
+  description = "If true, set up a Fleet GitRepo on the management cluster that installs SUSE Storage, the NVIDIA GPU Operator, and SUSE AI Factory onto any downstream cluster labeled ai-factory=true."
+  default     = false
+}
+
+variable "ai_factory_fleet_repo_url" {
+  type        = string
+  description = "Git URL (https:// or git@) of the repo containing this project's fleet/ directory, which Fleet's GitRepo custom resource polls to install SUSE Storage, the GPU Operator, and SUSE AI Factory onto the labeled cluster. Typically this project's own repo, once pushed somewhere the Rancher management cluster can reach. Required when install_ai_factory = true."
+  default     = null
+}
+
+variable "ai_factory_fleet_repo_branch" {
+  type        = string
+  description = "Git branch of ai_factory_fleet_repo_url that Fleet's GitRepo custom resource tracks."
+  default     = "main"
+}
+
 # --- SUSE registration & Customer Center ---
 
 variable "sles_reg_code" {

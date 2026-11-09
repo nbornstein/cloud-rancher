@@ -121,7 +121,10 @@ resource "google_compute_instance" "rancher_vm" {
       ingress_daemonset_name                  = local.ingress_daemonset_name,
       ingress_class_name                      = local.ingress_class_name,
       cert_manager_version                    = var.cert_manager_version,
-      rancher_version                         = var.rancher_version
+      rancher_version                         = var.rancher_version,
+      install_ai_factory                      = var.install_ai_factory,
+      ai_factory_fleet_repo_url               = var.ai_factory_fleet_repo_url,
+      ai_factory_fleet_repo_branch            = var.ai_factory_fleet_repo_branch
     }) :
     templatefile("${path.module}/templates/join-node.sh.tpl", {
       vm_hostname      = "vm-rancher-node-${count.index + 1}",

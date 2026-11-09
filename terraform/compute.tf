@@ -125,6 +125,21 @@ resource "null_resource" "validate_app_collection_config" {
   }
 }
 
+# Without this, install_ai_factory = true with a missing repo URL would
+# silently flow through as an empty string into the GitRepo CR and fail much
+# later (a GitRepo stuck in an error state) instead of failing at plan time.
+resource "null_resource" "validate_ai_factory_config" {
+  lifecycle {
+    precondition {
+      condition = (
+        !var.install_ai_factory ||
+        (var.ai_factory_fleet_repo_url != null && var.ai_factory_fleet_repo_url != "")
+      )
+      error_message = "install_ai_factory = true requires ai_factory_fleet_repo_url to be set."
+    }
+  }
+}
+
 # --- Destroy-time De-registration ---
 
 # These null_resources act as a hook to run a de-registration script when
