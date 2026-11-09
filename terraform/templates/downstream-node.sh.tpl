@@ -11,6 +11,16 @@ zypper --non-interactive --gpg-auto-import-keys refresh
 zypper --non-interactive update -y
 
 %{ if install_suse_storage ~}
+# Longhorn's manager pods refuse to start without iscsiadm/open-iscsi on the
+# host (crash loop: "failed to check environment, please make sure you have
+# iscsiadm/open-iscsi installed on the host") - it shells out to iscsiadm via
+# nsenter for every volume's iSCSI target. Install and enable it now, before
+# this node is ever registered as a cluster, since Longhorn itself can't be
+# installed here yet (no Kubernetes cluster until registration - see below).
+echo "Installing open-iscsi (required by Longhorn/SUSE Storage)..."
+zypper --non-interactive install -y open-iscsi
+systemctl enable --now iscsid
+
 # Prepare the dedicated data disk for SUSE Storage (Longhorn), the
 # block-storage prerequisite for SUSE AI Factory. Longhorn itself isn't
 # installed here - these nodes have no Kubernetes cluster yet (see README's

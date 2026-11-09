@@ -544,15 +544,27 @@ spec:
 EOF
 %{ endif ~}
 
-# 14. Set up Fleet for SUSE AI Factory, if enabled. The GitRepo CR and its
-# credentials secret live here on the management cluster (in Fleet's
-# fleet-default workspace) - this project doesn't create the downstream AI
-# Factory cluster itself. Create that cluster manually from the Rancher UI,
-# label it ai-factory=true, and Fleet's clusterSelector (see fleet/*/fleet.yaml
-# in this repo) picks it up and installs SUSE Storage, the NVIDIA GPU
-# Operator, and SUSE AI Factory onto it automatically.
+# 14. Set up SUSE AI Factory, if enabled. This has two independent parts:
+#
+# (a) A Fleet GitRepo, here on the management cluster (in Fleet's
+#     fleet-default workspace), that installs SUSE Storage and the NVIDIA GPU
+#     Operator onto the downstream AI Factory cluster - which this project
+#     doesn't create or register itself. Create that cluster manually from
+#     the Rancher UI, label it ai-factory=true, and Fleet's clusterSelector
+#     (see fleet/*/fleet.yaml in this repo) picks it up.
+#
+# (b) aif-operator itself, installed directly here on the management cluster,
+#     NOT via Fleet onto the downstream cluster. Its own chart requires
+#     Rancher's uiplugins.catalog.cattle.io/clusterrepos.catalog.cattle.io
+#     CRDs and talks to Rancher in-cluster at https://rancher.cattle-system.svc
+#     (hardcoded in its values.yaml) - it manages a Dashboard UI extension and
+#     "Blueprint" catalogs via Fleet GitRepos it creates itself in fleet-local,
+#     which only exists on this cluster. Installing it onto the downstream
+#     cluster instead (as an earlier iteration of this script did) fails with
+#     "no matches for kind GitRepo" in the downstream cluster, which has no
+#     Fleet CRDs of its own.
 %{ if install_ai_factory ~}
-echo "Setting up Fleet for SUSE AI Factory..."
+echo "Setting up SUSE AI Factory..."
 
 # Fleet is installed by Rancher as its own embedded chart, asynchronously,
 # some time after the "rancher" Deployment itself is already Ready (step 9) -
@@ -569,32 +581,7 @@ until kubectl get crd gitrepos.fleet.cattle.io &>/dev/null; do
   sleep 5
 done
 
-%{ if app_collection_username != "" ~}
-# aif-operator's values.yaml expects registry credentials under a
-# `credentials` block (see fleet/ai-factory/fleet.yaml) - Fleet's
-# helm.valuesFrom merges the YAML content of a secret key, not individual
-# username/password keys, so build that YAML snippet here rather than reusing
-# the plain basic-auth "application-collection" secret created in step 13.
-# set +x/-x brackets this so the credentials aren't traced into cloud-init logs.
-set +x
-cat <<EOF | kubectl create secret generic ai-factory-credentials \
-  --namespace fleet-default \
-  --from-file=values.yaml=/dev/stdin \
-  --dry-run=client -o yaml | kubectl apply -f -
-credentials:
-  applicationCollection:
-    username: "${app_collection_username}"
-    password: "${app_collection_password}"
-EOF
-set -x
-%{ else ~}
-echo "app_collection_username is unset; SUSE AI Factory will install without Application Collection credentials."
-kubectl create secret generic ai-factory-credentials \
-  --namespace fleet-default \
-  --from-literal=values.yaml="credentials: {}" \
-  --dry-run=client -o yaml | kubectl apply -f -
-%{ endif ~}
-
+echo "Setting up Fleet for SUSE Storage and the NVIDIA GPU Operator on the downstream AI Factory cluster..."
 kubectl apply -f - <<EOF
 apiVersion: fleet.cattle.io/v1alpha1
 kind: GitRepo
@@ -608,15 +595,27 @@ spec:
     - fleet/suse-storage-crd
     - fleet/suse-storage
     - fleet/gpu-operator
-    - fleet/ai-factory
   targets:
     - name: ai-factory-clusters
       clusterSelector:
         matchLabels:
           ai-factory: "true"
 EOF
+
+echo "Installing aif-operator (SUSE AI Factory) on the management cluster..."
+# set +x/-x brackets this so credentials aren't traced into cloud-init logs.
+set +x
+helm install aif-operator \
+  --namespace aif-operator \
+  --create-namespace \
+%{ if app_collection_username != "" ~}
+  --set credentials.applicationCollection.username="${app_collection_username}" \
+  --set credentials.applicationCollection.password="${app_collection_password}" \
+%{ endif ~}
+  oci://ghcr.io/suse/chart/aif-operator --version 2.3.1
+set -x
 %{ else ~}
-echo "install_ai_factory is false; skipping SUSE AI Factory Fleet setup."
+echo "install_ai_factory is false; skipping SUSE AI Factory setup."
 %{ endif ~}
 
 # 15. Confirm the Rancher Prime registration with SUSE Customer Center activated.
