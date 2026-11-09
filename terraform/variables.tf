@@ -312,6 +312,26 @@ variable "generic_openai_api_key" {
   sensitive   = true
 }
 
+# --- SUSE Virtual Clusters ---
+
+variable "install_suse_virtual_clusters" {
+  type        = bool
+  description = "If true, install the k3k controller and enable the SUSE Virtual Clusters Rancher Dashboard extension, so lightweight K3s virtual clusters can be provisioned from the Extensions UI. Defaults to false."
+  default     = false
+}
+
+variable "suse_virtual_clusters_extension_version" {
+  type        = string
+  description = "Version of the virtual-clusters Rancher Dashboard extension (from https://github.com/rancher/ui-plugin-charts) to install. Only used when install_suse_virtual_clusters is true."
+  default     = "1.2.1"
+}
+
+variable "k3k_chart_version" {
+  type        = string
+  description = "Version of the k3k Helm chart (from https://rancher.github.io/k3k) to install as the backend for the SUSE Virtual Clusters extension. Only used when install_suse_virtual_clusters is true."
+  default     = "1.2.0"
+}
+
 # --- SUSE Application Collection ---
 
 variable "app_collection_username" {

@@ -332,6 +332,8 @@ helm upgrade --install rancher rancher-prime/rancher \
   --set ingress.ingressClassName=${ingress_class_name} \
   --set registration.enabled=true \
   --set registration.regCode="" \
+  --set 'extraEnv[0].name=RANCHER_VERSION_TYPE' \
+  --set 'extraEnv[0].value=prime' \
   $TLS_SOURCE_OPTS \
   $PRIVATE_CA_OPTS
 set -x
@@ -460,7 +462,57 @@ kubectl create configmap rancher-ai-ui \
 rm -f /tmp/rancher-ai-ui-tools.json
 %{ endif ~}
 
-# 12. Add the SUSE Application Collection as an app repository, if credentials are set
+# 12. Install the k3k controller and enable the SUSE Virtual Clusters extension, if requested
+%{ if install_suse_virtual_clusters ~}
+echo "Installing k3k and enabling the SUSE Virtual Clusters extension..."
+
+# k3k (the backend that actually provisions the lightweight K3s virtual
+# clusters) isn't on registry.suse.com like rancher-ai-agent is - it's only
+# published to its own upstream Helm repo.
+helm repo add k3k https://rancher.github.io/k3k
+helm repo update k3k
+helm install k3k k3k/k3k \
+  --namespace k3k-system \
+  --create-namespace \
+  --version ${k3k_chart_version}
+
+# Install the SUSE Virtual Clusters Rancher Dashboard extension (virtual-clusters).
+# Same approach as the AI Assistant extension above: this replicates what
+# clicking "Install" on the Extensions page does under the hood - it creates a
+# UIPlugin resource pointing at the extension's pre-built JS bundle.
+#
+# spec.plugin.metadata is required - without the ui-extensions-version entry,
+# the dashboard refuses to load the extension as "incompatible". These values
+# are pinned to what virtual-clusters ${suse_virtual_clusters_extension_version}
+# actually ships (captured from rancher/ui-plugin-charts' index.yaml); bump
+# them if suse_virtual_clusters_extension_version changes to a release with
+# different compatibility ranges.
+kubectl create namespace cattle-ui-plugin-system --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f - <<EOF
+apiVersion: catalog.cattle.io/v1
+kind: UIPlugin
+metadata:
+  name: virtual-clusters
+  namespace: cattle-ui-plugin-system
+spec:
+  plugin:
+    name: virtual-clusters
+    version: "${suse_virtual_clusters_extension_version}"
+    endpoint: https://raw.githubusercontent.com/rancher/ui-plugin-charts/main/extensions/virtual-clusters/${suse_virtual_clusters_extension_version}
+    compressedEndpoint: https://raw.githubusercontent.com/rancher/virtual-clusters-ui/gh-pages/extensions/virtual-clusters/${suse_virtual_clusters_extension_version}.tgz
+    noAuth: false
+    noCache: false
+    metadata:
+      catalog.cattle.io/display-name: SUSE Virtual Clusters
+      catalog.cattle.io/prime-only: "true"
+      catalog.cattle.io/rancher-version: ">= 2.13.0"
+      catalog.cattle.io/ui-extensions-version: ">= 3.0.0 < 4.0.0"
+EOF
+%{ else ~}
+echo "install_suse_virtual_clusters is false; skipping SUSE Virtual Clusters installation."
+%{ endif ~}
+
+# 13. Add the SUSE Application Collection as an app repository, if credentials are set
 %{ if app_collection_username == "" ~}
 echo "app_collection_username is unset; skipping SUSE Application Collection repository setup."
 %{ else ~}
@@ -492,7 +544,7 @@ spec:
 EOF
 %{ endif ~}
 
-# 13. Confirm the Rancher Prime registration with SUSE Customer Center activated.
+# 14. Confirm the Rancher Prime registration with SUSE Customer Center activated.
 # The SCC Operator doesn't process the scc-registration secret until Rancher's
 # server-url and initial telemetry are ready, which can take 10+ minutes after
 # Rancher starts - so this runs last, with a generous timeout. The operator

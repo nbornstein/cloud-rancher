@@ -77,6 +77,13 @@ rancher_prime_reg_code = "YOUR_RANCHER_PRIME_REG_CODE"
 # generic_openai_api_key  = "YOUR_API_KEY"
 # generic_openai_model    = "YOUR_MODEL_NAME"
 
+# Optional: SUSE Virtual Clusters. Installs the k3k controller and enables
+# the virtual-clusters dashboard extension, so lightweight K3s virtual
+# clusters can be provisioned from the Extensions UI.
+# install_suse_virtual_clusters           = true
+# suse_virtual_clusters_extension_version = "1.2.1" # Version of the virtual-clusters dashboard extension to install
+# k3k_chart_version                       = "1.2.0" # Version of the k3k Helm chart to install
+
 # Optional: SUSE Application Collection. Leave app_collection_username
 # unset (or "") to skip adding it as an app repository. See
 # https://apps.rancher.io for a personal access token, or have an

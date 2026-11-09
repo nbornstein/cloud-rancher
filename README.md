@@ -31,8 +31,9 @@ The first node runs a setup script via the cloud's VM boot-script mechanism (`us
 4.  Deploy Rancher Prime via Helm, with TLS from either Let's Encrypt or a custom certificate pulled from AWS Secrets Manager. See [TLS / Certificate Options](#tls--certificate-options) below.
 5.  Add the official Rancher Extension repositories, so extensions are installable/browsable from the Extensions page without manually clicking "Add Rancher Repositories" first.
 6.  Optionally enable and configure the Rancher AI assistant ("Liz") with one of several LLM providers (Gemini, OpenAI, Bedrock, Ollama, or a generic OpenAI-compatible endpoint), including the dashboard extension that surfaces it in the UI.
-7.  Optionally add the [SUSE Application Collection](https://apps.rancher.io) as an app repository.
-8.  Wait for all components to be fully initialized and healthy.
+7.  Optionally install the k3k controller and the SUSE Virtual Clusters dashboard extension, for provisioning lightweight K3s virtual clusters from the Extensions UI.
+8.  Optionally add the [SUSE Application Collection](https://apps.rancher.io) as an app repository.
+9.  Wait for all components to be fully initialized and healthy.
 
 In a 3-node setup, the other two management nodes run a simpler script to join this same RKE2 cluster as additional servers. The downstream nodes provisioned alongside it are entirely separate - they are not part of the management cluster or its RKE2 install in any way. See [Downstream Nodes](#downstream-nodes) below for what happens (and doesn't happen) on them.
 
