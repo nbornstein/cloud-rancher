@@ -590,9 +590,9 @@ spec:
   repo: "${ai_factory_fleet_repo_url}"
   branch: "${ai_factory_fleet_repo_branch}"
   paths:
-    - terraform/fleet/suse-storage
-    - terraform/fleet/gpu-operator
-    - terraform/fleet/ai-factory
+    - fleet/suse-storage
+    - fleet/gpu-operator
+    - fleet/ai-factory
   targets:
     - name: ai-factory-clusters
       clusterSelector:

@@ -203,11 +203,11 @@ Setting `install_suse_storage = true` attaches a dedicated 40G disk to each down
 
 This project does not create or register the SUSE AI Factory downstream cluster for you - that's a deliberate choice, not a gap. Create it the same way as any other downstream cluster (above), sized per [SUSE's documented minimum](https://documentation.suse.com/cloudnative/suse-virtual-clusters/) for AI Factory (3 nodes, 32GB RAM / 8 CPU cores / 200GB storage each, with a GPU on each node).
 
-Setting `install_ai_factory = true` sets up a Fleet `GitRepo` on the management cluster (pointed at `ai_factory_fleet_repo_url`/`ai_factory_fleet_repo_branch`, typically this same repo once pushed somewhere the management cluster can reach) that watches the [`terraform/fleet`](terraform/fleet) directory. Once you label your downstream cluster `ai-factory=true` in the Rancher UI, Fleet's `clusterSelector` picks it up and installs, in order:
+Setting `install_ai_factory = true` sets up a Fleet `GitRepo` on the management cluster (pointed at `ai_factory_fleet_repo_url`/`ai_factory_fleet_repo_branch`, typically this same repo once pushed somewhere the management cluster can reach) that watches the [`fleet`](fleet) directory. Once you label your downstream cluster `ai-factory=true` in the Rancher UI, Fleet's `clusterSelector` picks it up and installs, in order:
 
-1.  **SUSE Storage** (Longhorn) - [`terraform/fleet/suse-storage`](terraform/fleet/suse-storage)
-2.  **NVIDIA GPU Operator** - [`terraform/fleet/gpu-operator`](terraform/fleet/gpu-operator)
-3.  **SUSE AI Factory** (`aif-operator`) - [`terraform/fleet/ai-factory`](terraform/fleet/ai-factory), which `dependsOn` the two bundles above so Fleet enforces that install order
+1.  **SUSE Storage** (Longhorn) - [`fleet/suse-storage`](fleet/suse-storage)
+2.  **NVIDIA GPU Operator** - [`fleet/gpu-operator`](fleet/gpu-operator)
+3.  **SUSE AI Factory** (`aif-operator`) - [`fleet/ai-factory`](fleet/ai-factory), which `dependsOn` the two bundles above so Fleet enforces that install order
 
 If `app_collection_username`/`app_collection_password` are set, they're automatically passed through to the `aif-operator` chart via an `ai-factory-credentials` secret Fleet reads from. `aif-operator` also supports NVIDIA NGC and SUSE Registry credentials, but no variables in this project plumb those through yet - add them manually to that secret (in the `fleet-default` namespace on the management cluster) if you need them.
 
