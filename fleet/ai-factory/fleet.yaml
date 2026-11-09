@@ -16,9 +16,13 @@ helm:
         name: ai-factory-credentials
         key: values.yaml
 
+# Fleet names each Bundle <gitrepo-name>-<path, slashes replaced with
+# dashes> - since this bundle's GitRepo is named "ai-factory", dependsOn has
+# to reference the resulting full bundle names (confirmed live via `kubectl
+# get bundles -n fleet-default`), not the bare path basenames.
 dependsOn:
-  - name: suse-storage
-  - name: gpu-operator
+  - name: ai-factory-fleet-suse-storage
+  - name: ai-factory-fleet-gpu-operator
 
 targetCustomizations:
   - name: ai-factory-clusters

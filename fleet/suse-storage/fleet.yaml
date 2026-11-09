@@ -18,8 +18,13 @@ helm:
       defaultClass: true
       defaultDataPath: /var/lib/longhorn
 
+# Fleet names each Bundle <gitrepo-name>-<path, slashes replaced with
+# dashes> - since this bundle's GitRepo is named "ai-factory" and this
+# bundle's own path is "fleet/suse-storage-crd", dependsOn has to reference
+# the resulting full bundle name (confirmed live via `kubectl get bundles -n
+# fleet-default`), not the bare path basename.
 dependsOn:
-  - name: suse-storage-crd
+  - name: ai-factory-fleet-suse-storage-crd
 
 targetCustomizations:
   - name: ai-factory-clusters
