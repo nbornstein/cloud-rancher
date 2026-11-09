@@ -113,6 +113,18 @@ resource "aws_security_group" "nsg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # RKE2 inter-node traffic (supervisor API, kubelet, CNI) - needed for any
+  # multi-node RKE2 cluster to actually join (rancher_node_count = 3 HA).
+  # Scoped to the VPC's own CIDR rather than local.admin_cidr_blocks, since
+  # this is node-to-node traffic, not admin access.
+  ingress {
+    description = "RKE2 inter-node (supervisor API, kubelet, CNI)"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = [var.aws_vpc_cidr]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
