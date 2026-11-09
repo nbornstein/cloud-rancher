@@ -205,9 +205,9 @@ This project does not create or register the SUSE AI Factory downstream cluster 
 
 Setting `install_ai_factory = true` sets up a Fleet `GitRepo` on the management cluster (pointed at `ai_factory_fleet_repo_url`/`ai_factory_fleet_repo_branch`, typically this same repo once pushed somewhere the management cluster can reach) that watches the [`fleet`](fleet) directory. Once you label your downstream cluster `ai-factory=true` in the Rancher UI, Fleet's `clusterSelector` picks it up and installs, in order:
 
-1.  **SUSE Storage** (Longhorn) - [`fleet/suse-storage`](fleet/suse-storage)
+1.  **SUSE Storage** (Longhorn CRDs, then Longhorn itself) - [`fleet/suse-storage-crd`](fleet/suse-storage-crd) and [`fleet/suse-storage`](fleet/suse-storage), from Rancher's public `https://charts.rancher.io` repo (no registry credentials needed - deliberately not the SUSE Application Collection's `oci://dp.apps.rancher.io/charts/suse-storage` chart, which would require handing the same registry credentials to the GPU Operator and AI Factory bundles' unrelated public OCI registries below, breaking their anonymous pulls)
 2.  **NVIDIA GPU Operator** - [`fleet/gpu-operator`](fleet/gpu-operator)
-3.  **SUSE AI Factory** (`aif-operator`) - [`fleet/ai-factory`](fleet/ai-factory), which `dependsOn` the two bundles above so Fleet enforces that install order
+3.  **SUSE AI Factory** (`aif-operator`) - [`fleet/ai-factory`](fleet/ai-factory), which `dependsOn` the bundles above so Fleet enforces that install order
 
 If `app_collection_username`/`app_collection_password` are set, they're automatically passed through to the `aif-operator` chart via an `ai-factory-credentials` secret Fleet reads from. `aif-operator` also supports NVIDIA NGC and SUSE Registry credentials, but no variables in this project plumb those through yet - add them manually to that secret (in the `fleet-default` namespace on the management cluster) if you need them.
 

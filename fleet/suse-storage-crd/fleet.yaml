@@ -1,0 +1,18 @@
+# Longhorn's CRDs ship as a separate chart from the main longhorn chart -
+# Rancher's own catalog installs this first automatically (via the
+# catalog.cattle.io/auto-install annotation on the longhorn chart), but Fleet
+# doesn't understand that annotation, so it's modeled here as its own bundle
+# that fleet/suse-storage depends on.
+defaultNamespace: longhorn-system
+
+helm:
+  repo: https://charts.rancher.io
+  chart: longhorn-crd
+  version: "110.1.0+up1.12.1"
+  releaseName: longhorn-crd
+
+targetCustomizations:
+  - name: ai-factory-clusters
+    clusterSelector:
+      matchLabels:
+        ai-factory: "true"

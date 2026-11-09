@@ -590,6 +590,7 @@ spec:
   repo: "${ai_factory_fleet_repo_url}"
   branch: "${ai_factory_fleet_repo_branch}"
   paths:
+    - fleet/suse-storage-crd
     - fleet/suse-storage
     - fleet/gpu-operator
     - fleet/ai-factory

@@ -1,13 +1,25 @@
+# This is the plain, publicly-pullable "longhorn" chart from Rancher's own
+# chart repo (no auth needed - its images are all public on Docker Hub under
+# rancher/mirrored-longhornio-*), not SUSE's Application Collection OCI chart
+# (oci://dp.apps.rancher.io/charts/suse-storage), which requires registry
+# credentials for both the chart pull and the container images it deploys -
+# wiring that through Fleet would mean handing those same credentials to the
+# gpu-operator and ai-factory bundles' public OCI registries too, which
+# reject (401, not anonymous fallback) any mismatched credentials.
 defaultNamespace: longhorn-system
 
 helm:
-  chart: oci://registry.suse.com/rancher/charts/longhorn
-  version: "106.2.0"
+  repo: https://charts.rancher.io
+  chart: longhorn
+  version: "110.1.0+up1.12.1"
   releaseName: longhorn
   values:
     persistence:
       defaultClass: true
       defaultDataPath: /var/lib/longhorn
+
+dependsOn:
+  - name: suse-storage-crd
 
 targetCustomizations:
   - name: ai-factory-clusters
