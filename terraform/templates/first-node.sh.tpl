@@ -554,6 +554,21 @@ EOF
 %{ if install_ai_factory ~}
 echo "Setting up Fleet for SUSE AI Factory..."
 
+# Fleet is installed by Rancher as its own embedded chart, asynchronously,
+# some time after the "rancher" Deployment itself is already Ready (step 9) -
+# so the GitRepo CRD may not be registered yet even though Rancher is up.
+# Without this wait, "kubectl apply"-ing the GitRepo below races that install
+# and fails with "no matches for kind GitRepo" instead of just... waiting.
+end_time=$((SECONDS + 300))
+until kubectl get crd gitrepos.fleet.cattle.io &>/dev/null; do
+  if [ $SECONDS -ge $end_time ]; then
+    echo "Error: Timed out waiting for the gitrepos.fleet.cattle.io CRD (Fleet) to be installed." >&2
+    exit 1
+  fi
+  echo "Waiting for Fleet's GitRepo CRD to be installed..."
+  sleep 5
+done
+
 %{ if app_collection_username != "" ~}
 # aif-operator's values.yaml expects registry credentials under a
 # `credentials` block (see fleet/ai-factory/fleet.yaml) - Fleet's
