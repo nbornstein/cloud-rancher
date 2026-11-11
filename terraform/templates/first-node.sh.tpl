@@ -582,6 +582,24 @@ until kubectl get crd gitrepos.fleet.cattle.io &>/dev/null; do
 done
 
 echo "Setting up Fleet for SUSE Storage and the NVIDIA GPU Operator on the downstream AI Factory cluster..."
+# A ClusterGroup is a reusable, named stand-in for a clusterSelector - defined
+# once here, then referenced by name (clusterGroup: ai-factory-clusters) from
+# both the GitRepo below and each bundle's own targetCustomizations (see
+# fleet/*/fleet.yaml), rather than repeating the ai-factory=true label match
+# in every one of them. Must live in the same namespace as the Cluster
+# objects it selects (fleet-default).
+kubectl apply -f - <<EOF
+apiVersion: fleet.cattle.io/v1alpha1
+kind: ClusterGroup
+metadata:
+  name: ai-factory-clusters
+  namespace: fleet-default
+spec:
+  selector:
+    matchLabels:
+      ai-factory: "true"
+EOF
+
 kubectl apply -f - <<EOF
 apiVersion: fleet.cattle.io/v1alpha1
 kind: GitRepo
@@ -597,9 +615,7 @@ spec:
     - fleet/gpu-operator
   targets:
     - name: ai-factory-clusters
-      clusterSelector:
-        matchLabels:
-          ai-factory: "true"
+      clusterGroup: ai-factory-clusters
 EOF
 
 echo "Installing aif-operator (SUSE AI Factory) on the management cluster..."

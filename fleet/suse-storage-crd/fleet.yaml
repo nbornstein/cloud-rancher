@@ -13,6 +13,4 @@ helm:
 
 targetCustomizations:
   - name: ai-factory-clusters
-    clusterSelector:
-      matchLabels:
-        ai-factory: "true"
+    clusterGroup: ai-factory-clusters
