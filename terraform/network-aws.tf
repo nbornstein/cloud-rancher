@@ -125,6 +125,26 @@ resource "aws_security_group" "nsg" {
     cidr_blocks = [var.aws_vpc_cidr]
   }
 
+  # Canal's VXLAN overlay (cross-node pod-to-pod traffic) rides on UDP, not
+  # TCP - without this, pods can only reach services on their own node.
+  ingress {
+    description = "RKE2 inter-node (Canal VXLAN overlay)"
+    from_port   = 8472
+    to_port     = 8472
+    protocol    = "udp"
+    cidr_blocks = [var.aws_vpc_cidr]
+  }
+
+  # Downstream clusters use Calico (not Canal), whose VXLAN overlay defaults
+  # to the standard IANA VXLAN port, 4789 - different from Canal's 8472.
+  ingress {
+    description = "RKE2 inter-node (Calico VXLAN overlay)"
+    from_port   = 4789
+    to_port     = 4789
+    protocol    = "udp"
+    cidr_blocks = [var.aws_vpc_cidr]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
